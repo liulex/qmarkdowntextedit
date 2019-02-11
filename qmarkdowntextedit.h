@@ -40,13 +40,13 @@ public:
     explicit QMarkdownTextEdit(QWidget *parent = 0, bool initHighlighter = true);
     MarkdownHighlighter *highlighter();
     QPlainTextEditSearchWidget *searchWidget();
-    void setIgnoredClickUrlSchemata(QStringList ignoredUrlSchemata);
-    virtual void openUrl(QString urlString);
-    QString getMarkdownUrlAtPosition(QString text, int position);
+    void setIgnoredClickUrlSchemata(const QStringList &ignoredUrlSchemata);
+    virtual void openUrl(const QString &urlString);
+    QString getMarkdownUrlAtPosition(const QString &text, int position);
     void initSearchFrame(QWidget *searchFrame, bool darkMode = false);
     void setAutoTextOptions(AutoTextOptions options);
     void setHighlightingEnabled(bool enabled);
-    static bool isValidUrl(QString urlString);
+    static bool isValidUrl(const QString &urlString);
     void resetMouseCursor() const;
     void setReadOnly(bool ro);
 
@@ -72,16 +72,16 @@ protected:
     bool eventFilter(QObject *obj, QEvent *event);
     bool increaseSelectedTextIndention(bool reverse);
     bool handleTabEntered(bool reverse);
-    QMap<QString, QString> parseMarkdownUrlsFromText(QString text);
+    QMap<QString, QString> parseMarkdownUrlsFromText(const QString &text);
     bool handleReturnEntered();
-    bool handleBracketClosing(QString openingCharacter,
-                              QString closingCharacter = "");
-    bool bracketClosingCheck(QString openingCharacter,
-                             QString closingCharacter);
-    bool quotationMarkCheck(QString quotationCharacter);
+    bool handleBracketClosing(const QString &openingCharacter,
+                              const QString &closingCharacter = "");
+    bool bracketClosingCheck(const QString &openingCharacter,
+                             const QString &closingCharacter);
+    bool quotationMarkCheck(const QString &quotationCharacter);
     void focusOutEvent(QFocusEvent *event);
     void paintEvent(QPaintEvent *e);
 
 signals:
-    void urlClicked(QString url);
+    void urlClicked(const QString &url);
 };

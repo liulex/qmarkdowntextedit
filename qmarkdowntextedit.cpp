@@ -342,8 +342,8 @@ void QMarkdownTextEdit::focusOutEvent(QFocusEvent *event) {
  * @param closingCharacter
  * @return
  */
-bool QMarkdownTextEdit::handleBracketClosing(QString openingCharacter,
-                                             QString closingCharacter) {
+bool QMarkdownTextEdit::handleBracketClosing(const QString &openingCharacter,
+                                             const QString &closingCharacter_) {
     // check if bracket closing is enabled
     if (!(_autoTextOptions & AutoTextOption::BracketClosing)) {
         return false;
@@ -354,6 +354,7 @@ bool QMarkdownTextEdit::handleBracketClosing(QString openingCharacter,
     // get the current text from the block (inserted character not included)
     QString text = cursor.block().text();
 
+    auto closingCharacter = closingCharacter_;
     if (closingCharacter.isEmpty()) {
         closingCharacter = openingCharacter;
     }
@@ -445,13 +446,14 @@ bool QMarkdownTextEdit::handleBracketClosing(QString openingCharacter,
  * @param closingCharacter
  * @return
  */
-bool QMarkdownTextEdit::bracketClosingCheck(QString openingCharacter,
-                                            QString closingCharacter) {
+bool QMarkdownTextEdit::bracketClosingCheck(const QString &openingCharacter,
+                                            const QString &closingCharacter_) {
     // check if bracket closing is enabled
     if (!(_autoTextOptions & AutoTextOption::BracketClosing)) {
         return false;
     }
 
+    auto closingCharacter = closingCharacter_;
     if (closingCharacter.isEmpty()) {
         closingCharacter = openingCharacter;
     }
@@ -505,7 +507,7 @@ bool QMarkdownTextEdit::bracketClosingCheck(QString openingCharacter,
  * @param quotationCharacter
  * @return
  */
-bool QMarkdownTextEdit::quotationMarkCheck(QString quotationCharacter) {
+bool QMarkdownTextEdit::quotationMarkCheck(const QString &quotationCharacter) {
     // check if bracket closing is enabled
     if (!(_autoTextOptions & AutoTextOption::BracketClosing)) {
         return false;
@@ -719,7 +721,7 @@ bool QMarkdownTextEdit::openLinkAtCursorPosition() {
  * @param urlString
  * @return
  */
-bool QMarkdownTextEdit::isValidUrl(QString urlString) {
+bool QMarkdownTextEdit::isValidUrl(const QString &urlString) {
     QRegularExpressionMatch match =
             QRegularExpression("^\\w+:\\/\\/.+").match(urlString);
     return match.hasMatch();
@@ -734,7 +736,7 @@ bool QMarkdownTextEdit::isValidUrl(QString urlString) {
  *   "/path/to/my/file/QOwnNotes.pdf" if the operating system supports that
  *  handler
  */
-void QMarkdownTextEdit::openUrl(QString urlString) {
+void QMarkdownTextEdit::openUrl(const QString &urlString) {
     qDebug() << "QMarkdownTextEdit " << __func__ << " - 'urlString': "
         << urlString;
 
@@ -762,7 +764,7 @@ QPlainTextEditSearchWidget *QMarkdownTextEdit::searchWidget() {
  * @param urlSchemes
  */
 void QMarkdownTextEdit::setIgnoredClickUrlSchemata(
-        QStringList ignoredUrlSchemata) {
+        const QStringList &ignoredUrlSchemata) {
     _ignoredClickUrlSchemata = ignoredUrlSchemata;
 }
 
@@ -773,7 +775,7 @@ void QMarkdownTextEdit::setIgnoredClickUrlSchemata(
  * @return parsed urls
  */
 QMap<QString, QString> QMarkdownTextEdit::parseMarkdownUrlsFromText(
-        QString text) {
+        const QString &text) {
     QMap<QString, QString> urlMap;
     QRegularExpression regex;
     QRegularExpressionMatchIterator iterator;
@@ -842,7 +844,7 @@ QMap<QString, QString> QMarkdownTextEdit::parseMarkdownUrlsFromText(
  * @return url string
  */
 QString QMarkdownTextEdit::getMarkdownUrlAtPosition(
-        QString text, int position) {
+        const QString &text, int position) {
     QString url;
 
     // get a map of parsed markdown urls with their link texts as key

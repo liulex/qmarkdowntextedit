@@ -85,7 +85,7 @@ void MarkdownHighlighter::clearDirtyBlocks() {
  *
  * @param block
  */
-void MarkdownHighlighter::addDirtyBlock(QTextBlock block) {
+void MarkdownHighlighter::addDirtyBlock(const QTextBlock &block) {
     if (!_dirtyTextBlocks.contains(block)) {
         _dirtyTextBlocks.append(block);
     }
@@ -387,7 +387,7 @@ void MarkdownHighlighter::highlightBlock(const QString &text) {
     _highlightingFinished = true;
 }
 
-void MarkdownHighlighter::highlightMarkdown(QString text) {
+void MarkdownHighlighter::highlightMarkdown(const QString &text) {
     if (!text.isEmpty()) {
         highlightAdditionalRules(_highlightingRulesPre, text);
 
@@ -406,7 +406,7 @@ void MarkdownHighlighter::highlightMarkdown(QString text) {
  *
  * @param text
  */
-void MarkdownHighlighter::highlightHeadline(QString text) {
+void MarkdownHighlighter::highlightHeadline(const QString &text) {
     QRegularExpression regex("^(#+)\\s+(.+?)$");
     QRegularExpressionMatch match = regex.match(text);
     QTextCharFormat &maskedFormat = _formats[HighlighterState::MaskedSyntax];
@@ -568,7 +568,7 @@ void MarkdownHighlighter::setCurrentBlockMargin(
  *
  * @param text
  */
-void MarkdownHighlighter::highlightCodeBlock(QString text) {
+void MarkdownHighlighter::highlightCodeBlock(const QString &text) {
     QRegularExpression regex("^```\\w*?$");
     QRegularExpressionMatch match = regex.match(text);
 
@@ -594,9 +594,9 @@ void MarkdownHighlighter::highlightCodeBlock(QString text) {
  *
  * @param text
  */
-void MarkdownHighlighter::highlightCommentBlock(QString text) {
+void MarkdownHighlighter::highlightCommentBlock(const QString &text_) {
     bool highlight = false;
-    text = text.trimmed();
+    auto text = text_.trimmed();
     QString startText = "<!--";
     QString endText = "-->";
 
@@ -626,7 +626,7 @@ void MarkdownHighlighter::highlightCommentBlock(QString text) {
  * @param text
  */
 void MarkdownHighlighter::highlightAdditionalRules(
-        QVector<HighlightingRule> &rules, QString text) {
+        QVector<HighlightingRule> &rules, const QString &text) {
     QTextCharFormat &maskedFormat = _formats[HighlighterState::MaskedSyntax];
 
     foreach(const HighlightingRule &rule, rules) {
