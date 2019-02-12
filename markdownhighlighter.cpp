@@ -19,6 +19,7 @@
 #include <QRegularExpression>
 #include <QRegularExpressionMatch>
 #include <QRegularExpressionMatchIterator>
+#include <QTextDocument>
 
 
 /**
@@ -32,7 +33,8 @@
  */
 MarkdownHighlighter::MarkdownHighlighter(
         QTextDocument *parent, HighlightingOptions highlightingOptions)
-        : QSyntaxHighlighter(parent) {
+        : QSyntaxHighlighter(parent)
+        , _codeblockExplicitStarted(false) {
     _highlightingOptions = highlightingOptions;
     _timer = new QTimer(this);
     QObject::connect(_timer, SIGNAL(timeout()),
@@ -70,6 +72,24 @@ void MarkdownHighlighter::reHighlightDirtyBlocks() {
         QTextBlock block = _dirtyTextBlocks.at(0);
         rehighlightBlock(block);
         _dirtyTextBlocks.removeFirst();
+    }
+}
+
+void MarkdownHighlighter::setCurrentBlockBackground(HighlighterState state) {
+    QTextBlockFormat blockFormat = QTextCursor(currentBlock()).blockFormat();
+    blockFormat.setBackground(_formats[state].background());
+    setCurrentBlockFormat(blockFormat);
+}
+
+void MarkdownHighlighter::setCurrentBlockFormat(const QTextBlockFormat &blockFormat)
+{
+    QTextCursor cursor(currentBlock());
+    if (blockFormat != cursor.blockFormat()) {
+        const int steps = document()->availableUndoSteps();
+        cursor.setBlockFormat(blockFormat);
+        while (document()->availableUndoSteps() > steps) {
+            document()->undo();
+        }
     }
 }
 
@@ -127,6 +147,7 @@ void MarkdownHighlighter::initHighlightingRules() {
                     HighlightingOption::FullyHighlightedBlockQuote) ?
                     "^\\s*(>\\s*.+)" : "^\\s*(>\\s*)+");
     rule.state = HighlighterState::BlockQuote;
+    rule.useStateAsCurrentBlockState = true;
     _highlightingRulesPre.append(rule);
 
     // highlight horizontal rulers
@@ -242,6 +263,7 @@ void MarkdownHighlighter::initHighlightingRules() {
     rule = HighlightingRule();
     rule.pattern = QRegularExpression("^((\\t)|( {4,})).+$");
     rule.state = HighlighterState::CodeBlock;
+    rule.useStateAsCurrentBlockState = true;
     rule.disableIfCurrentStateIsSet = true;
     _highlightingRulesAfter.append(rule);
 
@@ -571,11 +593,13 @@ void MarkdownHighlighter::setCurrentBlockMargin(
 void MarkdownHighlighter::highlightCodeBlock(const QString &text) {
     QRegularExpression regex("^```\\w*?$");
     QRegularExpressionMatch match = regex.match(text);
+    //qInfo() << currentBlockState() << previousBlockState();
 
     if (match.hasMatch()) {
         setCurrentBlockState(
                 previousBlockState() == HighlighterState::CodeBlock ?
                 HighlighterState::CodeBlockEnd : HighlighterState::CodeBlock);
+        _codeblockExplicitStarted = currentBlockState() == HighlighterState::CodeBlock;
         // set the font size from the current rule's font format
         QTextCharFormat &maskedFormat =
                 _formats[HighlighterState::MaskedSyntax];
@@ -584,9 +608,33 @@ void MarkdownHighlighter::highlightCodeBlock(const QString &text) {
 
         setFormat(0, text.length(), maskedFormat);
     } else if (previousBlockState() == HighlighterState::CodeBlock) {
-        setCurrentBlockState(HighlighterState::CodeBlock);
-        setFormat(0, text.length(), _formats[HighlighterState::CodeBlock]);
+        if (_codeblockExplicitStarted) {
+            setCurrentBlockState(HighlighterState::CodeBlock);
+            setFormat(0, text.length(), _formats[HighlighterState::CodeBlock]);
+        }
     }
+    else if (currentBlockState() == HighlighterState::CodeBlock) {
+        // code blocks with four spaces or tabs in front of them
+        if (!_codeblockExplicitStarted)
+            return;
+    }
+    else if (previousBlockState() == HighlighterState::BlockQuote &&
+             currentBlockState() == HighlighterState::NoState &&
+             !text.isEmpty()) {
+        setCurrentBlockState(HighlighterState::BlockQuote);
+        setFormat(0, text.length(), _formats[HighlighterState::BlockQuote]);
+        setCurrentBlockBackground(HighlighterState::BlockQuote);
+    }
+
+    // do not clear background color for some states
+    if (currentBlockState() == HighlighterState::BlockQuote)
+        return;
+
+    HighlighterState backgroundFormat =
+        currentBlockState() == HighlighterState::CodeBlock && previousBlockState() == HighlighterState::CodeBlock ?
+        HighlighterState::CodeBlock :
+        HighlighterState::NoState;
+    setCurrentBlockBackground(backgroundFormat);
 }
 
 /**
@@ -664,6 +712,11 @@ void MarkdownHighlighter::highlightAdditionalRules(
                     setFormat(match.capturedStart(maskedGroup),
                               match.capturedLength(maskedGroup),
                               currentMaskedFormat);
+                }
+
+                if (rule.state == HighlighterState::BlockQuote ||
+                    rule.state == HighlighterState::CodeBlock) {
+                    setCurrentBlockBackground(rule.state);
                 }
 
                 setFormat(match.capturedStart(capturingGroup),

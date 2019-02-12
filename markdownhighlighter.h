@@ -121,6 +121,9 @@ protected:
 
     void reHighlightDirtyBlocks();
 
+    void setCurrentBlockBackground(HighlighterState state);
+    void setCurrentBlockFormat(const QTextBlockFormat &blockFormat);
+
     QVector<HighlightingRule> _highlightingRulesPre;
     QVector<HighlightingRule> _highlightingRulesAfter;
     QVector<QTextBlock> _dirtyTextBlocks;
@@ -128,6 +131,7 @@ protected:
     QTimer *_timer;
     bool _highlightingFinished;
     HighlightingOptions _highlightingOptions;
+    bool _codeblockExplicitStarted;
 
     void setCurrentBlockMargin(HighlighterState state);
 };
