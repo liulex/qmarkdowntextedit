@@ -42,6 +42,7 @@ public:
     QPlainTextEditSearchWidget *searchWidget();
     void setIgnoredClickUrlSchemata(const QStringList &ignoredUrlSchemata);
     virtual void openUrl(const QString &urlString);
+    QString getMarkdownUrlAtTextCursor(QTextCursor cursor);
     QString getMarkdownUrlAtPosition(const QString &text, int position);
     void initSearchFrame(QWidget *searchFrame, bool darkMode = false);
     void setAutoTextOptions(AutoTextOptions options);
@@ -58,6 +59,7 @@ public slots:
     void hide();
     bool openLinkAtCursorPosition();
     bool handleBracketRemoval();
+    void updateViewportCursor();
 
 protected:
     MarkdownHighlighter *_highlighter;

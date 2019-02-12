@@ -75,6 +75,8 @@ QMarkdownTextEdit::QMarkdownTextEdit(QWidget *parent, bool initHighlighter)
 
     // workaround for disabled signals up initialization
     QTimer::singleShot(300, this, SLOT(adjustRightMargin()));
+
+    viewport()->setMouseTracking(true);
 }
 
 /**
@@ -109,28 +111,17 @@ void QMarkdownTextEdit::adjustRightMargin() {
 
 bool QMarkdownTextEdit::eventFilter(QObject *obj, QEvent *event) {
     //qDebug() << event->type();
-    if (event->type() == QEvent::HoverMove) {
-        QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-
-        QWidget *viewPort = this->viewport();
-        // toggle cursor when control key has been pressed or released
-        viewPort->setCursor(mouseEvent->modifiers().testFlag(
-                Qt::ControlModifier) ?
-                            Qt::PointingHandCursor :
-                            Qt::IBeamCursor);
+    if (event->type() == QEvent::MouseMove) {
+        updateViewportCursor();
     } else if (event->type() == QEvent::KeyPress) {
-        QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
-
-        // set cursor to pointing hand if control key was pressed
-        if (keyEvent->modifiers().testFlag(Qt::ControlModifier)) {
-            QWidget *viewPort = this->viewport();
-            viewPort->setCursor(Qt::PointingHandCursor);
-        }
+        updateViewportCursor();
 
         // disallow keys if text edit hasn't focus
         if (!this->hasFocus()) {
             return true;
         }
+
+        QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
 
         if ((keyEvent->key() == Qt::Key_Escape) && _searchWidget->isVisible()) {
             _searchWidget->deactivate();
@@ -600,6 +591,15 @@ bool QMarkdownTextEdit::handleBracketRemoval() {
     return false;
 }
 
+void QMarkdownTextEdit::updateViewportCursor() {
+    auto viewPort = this->viewport();
+    // toggle cursor when control key has been pressed or released
+    viewPort->setCursor(qApp->queryKeyboardModifiers().testFlag(Qt::ControlModifier) &&
+                        !getMarkdownUrlAtTextCursor(cursorForPosition(mapFromGlobal(QCursor::pos()))).isEmpty() ?
+                        Qt::PointingHandCursor :
+                        Qt::IBeamCursor);
+}
+
 /**
  * Increases (or decreases) the indention of the selected text
  * (if there is a text selected) in the noteTextEdit
@@ -679,20 +679,7 @@ bool QMarkdownTextEdit::increaseSelectedTextIndention(bool reverse) {
  * @brief Opens the link (if any) at the current cursor position
  */
 bool QMarkdownTextEdit::openLinkAtCursorPosition() {
-    QTextCursor cursor = this->textCursor();
-    int clickedPosition = cursor.position();
-
-    // select the text in the clicked block and find out on
-    // which position we clicked
-    cursor.movePosition(QTextCursor::StartOfBlock);
-    int positionFromStart = clickedPosition - cursor.position();
-    cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
-
-    QString selectedText = cursor.selectedText();
-
-    // find out which url in the selected text was clicked
-    QString urlString = getMarkdownUrlAtPosition(selectedText,
-                                                 positionFromStart);
+    auto urlString = getMarkdownUrlAtTextCursor(this->textCursor());
     QUrl url = QUrl(urlString);
     bool isRelativeFileUrl = urlString.startsWith("file://..");
 
@@ -838,6 +825,27 @@ QMap<QString, QString> QMarkdownTextEdit::parseMarkdownUrlsFromText(
 }
 
 /**
+ * @brief Returns the markdown url at cursor positino
+ * @param text
+ * @param position
+ * @return url string
+ */
+QString QMarkdownTextEdit::getMarkdownUrlAtTextCursor(QTextCursor cursor) {
+    int clickedPosition = cursor.position();
+
+    // select the text in the clicked block and find out on
+    // which position we clicked
+    cursor.movePosition(QTextCursor::StartOfBlock);
+    int positionFromStart = clickedPosition - cursor.position();
+    cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+
+    QString selectedText = cursor.selectedText();
+
+    // find out which url in the selected text was clicked
+    return getMarkdownUrlAtPosition(selectedText, positionFromStart);
+}
+
+/**
  * @brief Returns the markdown url at position
  * @param text
  * @param position
@@ -853,14 +861,14 @@ QString QMarkdownTextEdit::getMarkdownUrlAtPosition(
     QMapIterator<QString, QString> iterator(urlMap);
     while (iterator.hasNext()) {
         iterator.next();
-        QString linkText = iterator.key();
+        //QString linkText = iterator.key();
         QString urlString = iterator.value();
 
-        int foundPositionStart = text.indexOf(linkText);
+        int foundPositionStart = text.indexOf(urlString);
 
         if (foundPositionStart >= 0) {
             // calculate end position of found linkText
-            int foundPositionEnd = foundPositionStart + linkText.size();
+            int foundPositionEnd = foundPositionStart + urlString.size();
 
             // check if position is in found string range
             if ((position >= foundPositionStart) &&
