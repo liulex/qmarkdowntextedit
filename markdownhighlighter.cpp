@@ -557,7 +557,7 @@ void MarkdownHighlighter::setCurrentBlockMargin(
     // - a crash when reaching the invisible lines when the current line is
     //   highlighted
     //   https://github.com/pbek/QOwnNotes/issues/701
-    return;
+    //return;
 
     qreal margin;
 
@@ -580,11 +580,8 @@ void MarkdownHighlighter::setCurrentBlockMargin(
     blockFormat.setTopMargin(2);
     blockFormat.setBottomMargin(margin);
 
-    // this prevents "undo" in headlines!
-    QTextCursor* myCursor = new QTextCursor(currentBlock());
-    myCursor->setBlockFormat(blockFormat);
+    setCurrentBlockFormat(blockFormat);
 }
-
 /**
  * Highlight multi-line code blocks
  *
