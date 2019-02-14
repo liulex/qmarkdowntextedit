@@ -205,6 +205,11 @@ void QPlainTextEditSearchWidget::doReplaceAll() {
 bool QPlainTextEditSearchWidget::doSearch(bool searchDown, bool allowRestartAtTop) {
     QString text = ui->searchLineEdit->text();
 
+    // clear selection & move cursor to the smaller position
+    QTextCursor cursor = _textEdit->textCursor();
+    cursor.setPosition(qMin(cursor.anchor(), cursor.position()));
+    _textEdit->setTextCursor(cursor);
+
     if (text == "") {
         ui->searchLineEdit->setStyleSheet("");
         return false;
@@ -232,9 +237,17 @@ bool QPlainTextEditSearchWidget::doSearch(bool searchDown, bool allowRestartAtTo
 
     // start at the top (or bottom) if not found
     if (!found && allowRestartAtTop) {
+        int position = cursor.position();
+
         _textEdit->moveCursor(
                 searchDown ? QTextCursor::Start : QTextCursor::End);
         found = _textEdit->find(text, options);
+
+        if (!found) {
+            // restore the last cursor position if not found
+            cursor.setPosition(position);
+            _textEdit->setTextCursor(cursor);
+        }
     }
 
     QRect rect = _textEdit->cursorRect();
