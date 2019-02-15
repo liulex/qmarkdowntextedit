@@ -1091,6 +1091,54 @@ void QMarkdownTextEdit::paintEvent(QPaintEvent *e) {
     QPlainTextEdit::paintEvent(e);
 }
 
+void QMarkdownTextEdit::mouseDoubleClickEvent(QMouseEvent *event) {
+    auto oldPos = textCursor().position();
+    QPlainTextEdit::mouseDoubleClickEvent(event);
+
+    auto cursor = textCursor();
+    if (!cursor.hasSelection())
+        return;
+
+    static QStringList chineasePunctuations = {
+        "\u3002", "\uff1f", "\uff01", "\uff0c", "\u3001", "\uff1b", "\uff1a", "\u201c",
+        "\u201d", "\u2018", "\u2019", "\uff08", "\uff09", "\u300a", "\u300b", "\u3008",
+        "\u3009", "\u3010", "\u3011", "\u300e", "\u300f", "\u300c", "\u300d", "\ufe43",
+        "\ufe44", "\u3014", "\u3015", "\u2026", "\u2014", "\uff5e", "\ufe4f", "\uffe5",
+    };
+    
+    auto text = cursor.selectedText();
+
+    auto selStart = cursor.selectionStart();
+    auto selEnd = cursor.selectionEnd();
+    oldPos -= selStart;
+    
+    QRegExp re("[" + chineasePunctuations.join("|") + "]+");
+    auto index = text.lastIndexOf(re, oldPos);
+    bool punctuationUnderCursor = false;
+    if (index != -1) {
+        if (index == oldPos) {
+            index = text.lastIndexOf(QRegExp("[^" + chineasePunctuations.join("|") + "]"), oldPos);
+            punctuationUnderCursor = true;
+        }
+        selStart += index + 1;
+    }
+    index = text.indexOf(re, oldPos);
+    if (index != -1) {
+        if (!punctuationUnderCursor)
+            selEnd -= text.length() - index;
+        else
+            selEnd -= text.length() - (index + re.matchedLength());
+    }
+    
+    if (selEnd - selStart == text.length())
+        return;
+
+    cursor.setPosition(selStart);
+    cursor.movePosition(QTextCursor::Right, QTextCursor::KeepAnchor, selEnd - selStart);
+    text = cursor.selectedText();
+    setTextCursor(cursor);
+}
+
 /**
  * Overrides QPlainTextEdit::setReadOnly to fix a problem with Chinese and
  * Japanese input methods
