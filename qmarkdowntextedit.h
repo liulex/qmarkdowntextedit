@@ -83,6 +83,7 @@ protected:
     bool quotationMarkCheck(const QString &quotationCharacter);
     void focusOutEvent(QFocusEvent *event);
     void paintEvent(QPaintEvent *e);
+    void mouseDoubleClickEvent(QMouseEvent *event);
 
 signals:
     void urlClicked(const QString &url);
