@@ -1127,13 +1127,40 @@ void QMarkdownTextEdit::mouseDoubleClickEvent(QMouseEvent *event) {
                 setTextCursor(cursor);
             }
         }
+        else if (cursor.atBlockStart()) {
+            auto blockText = cursor.block().text();
+            if (!blockText.isEmpty()) {
+                int spaceCount = 0;
+                while (spaceCount < blockText.length() && blockText[spaceCount].isSpace())
+                    ++spaceCount;
+                cursor.movePosition(QTextCursor::Right, QTextCursor::KeepAnchor, spaceCount);
+                setTextCursor(cursor);
+            }
+        }
         return;
     }
     
-    auto text = cursor.selectedText();
-
     auto selStart = cursor.selectionStart();
     auto selEnd = cursor.selectionEnd();
+
+    // cursor at spaces
+    if (selEnd < oldPos) {
+        auto blockText = cursor.block().text();
+        cursor.movePosition(QTextCursor::StartOfBlock, QTextCursor::MoveAnchor);
+        selStart = selEnd = oldPos - cursor.position();
+        while (selStart >= 1 && blockText[selStart - 1].isSpace())
+            --selStart;
+        while (selEnd < blockText.length() && blockText[selEnd].isSpace())
+            ++selEnd;
+        selStart += cursor.position();
+        selEnd += cursor.position();
+        cursor.setPosition(selStart);
+        cursor.movePosition(QTextCursor::Right, QTextCursor::KeepAnchor, selEnd - selStart);
+        setTextCursor(cursor);
+        return;
+    }
+
+    auto text = cursor.selectedText();
     oldPos -= selStart;
     
     QRegExp re("[" + chineasePunctuations.join("|") + "]+");
@@ -1159,7 +1186,6 @@ void QMarkdownTextEdit::mouseDoubleClickEvent(QMouseEvent *event) {
 
     cursor.setPosition(selStart);
     cursor.movePosition(QTextCursor::Right, QTextCursor::KeepAnchor, selEnd - selStart);
-    text = cursor.selectedText();
     setTextCursor(cursor);
 }
 
