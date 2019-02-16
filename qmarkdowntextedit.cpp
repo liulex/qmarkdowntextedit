@@ -1094,19 +1094,41 @@ void QMarkdownTextEdit::paintEvent(QPaintEvent *e) {
 }
 
 void QMarkdownTextEdit::mouseDoubleClickEvent(QMouseEvent *event) {
-    auto oldPos = textCursor().position();
-    QPlainTextEdit::mouseDoubleClickEvent(event);
-
-    auto cursor = textCursor();
-    if (!cursor.hasSelection())
-        return;
-
     static QStringList chineasePunctuations = {
         "\u3002", "\uff1f", "\uff01", "\uff0c", "\u3001", "\uff1b", "\uff1a", "\u201c",
         "\u201d", "\u2018", "\u2019", "\uff08", "\uff09", "\u300a", "\u300b", "\u3008",
         "\u3009", "\u3010", "\u3011", "\u300e", "\u300f", "\u300c", "\u300d", "\ufe43",
         "\ufe44", "\u3014", "\u3015", "\u2026", "\u2014", "\uff5e", "\ufe4f", "\uffe5",
     };
+    static QString punctuations = R"(.,/#!$%\^&\*;:{}=\-_`~())";
+
+    auto oldPos = textCursor().position();
+    QPlainTextEdit::mouseDoubleClickEvent(event);
+
+    auto cursor = textCursor();
+    if (!cursor.hasSelection())
+    {
+        if (cursor.atBlockEnd()) {
+            auto blockText = cursor.block().text();
+            if (!blockText.isEmpty()) {
+                cursor.movePosition(QTextCursor::Left, QTextCursor::KeepAnchor);
+                auto text = cursor.selectedText();
+                int n = blockText.length();
+                int sameCharCount = 1;
+                if (text[0].isSpace()) {
+                    while (sameCharCount < n && blockText[n - 1 - sameCharCount].isSpace())
+                        sameCharCount++;
+                }
+                else if (punctuations.contains(text)) {
+                    while (sameCharCount < n && punctuations.contains(QChar(blockText[n - 1 - sameCharCount])))
+                        sameCharCount++;
+                }
+                cursor.movePosition(QTextCursor::Left, QTextCursor::KeepAnchor, sameCharCount - 1);
+                setTextCursor(cursor);
+            }
+        }
+        return;
+    }
     
     auto text = cursor.selectedText();
 
@@ -1118,7 +1140,7 @@ void QMarkdownTextEdit::mouseDoubleClickEvent(QMouseEvent *event) {
     auto index = text.lastIndexOf(re, oldPos);
     bool punctuationUnderCursor = false;
     if (index != -1) {
-        if (index == oldPos) {
+        if (index == oldPos || (cursor.atBlockEnd() && index == oldPos - 1)) {
             index = text.lastIndexOf(QRegExp("[^" + chineasePunctuations.join("|") + "]"), oldPos);
             punctuationUnderCursor = true;
         }
