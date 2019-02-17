@@ -173,6 +173,7 @@ bool QMarkdownTextEdit::eventFilter(QObject *obj, QEvent *event) {
             return handleBracketClosing("[", "]");
         } else if (keyEvent->key() == Qt::Key_Less) {
             return handleBracketClosing("<", ">");
+/*
 #ifdef Q_OS_MAC
         } else if (keyEvent->modifiers().testFlag(Qt::AltModifier) &&
                    keyEvent->key() == Qt::Key_ParenRight) {
@@ -185,6 +186,7 @@ bool QMarkdownTextEdit::eventFilter(QObject *obj, QEvent *event) {
             return bracketClosingCheck("{", "}");
         } else if (keyEvent->key() == Qt::Key_BracketRight) {
             return bracketClosingCheck("[", "]");
+*/
         } else if (keyEvent->key() == Qt::Key_Return &&
         keyEvent->modifiers().testFlag(Qt::ShiftModifier)) {
             QTextCursor cursor = this->textCursor();
