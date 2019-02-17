@@ -1094,20 +1094,22 @@ void QMarkdownTextEdit::paintEvent(QPaintEvent *e) {
 }
 
 void QMarkdownTextEdit::mouseDoubleClickEvent(QMouseEvent *event) {
-    static QStringList chineasePunctuations = {
-        "\u3002", "\uff1f", "\uff01", "\uff0c", "\u3001", "\uff1b", "\uff1a", "\u201c",
-        "\u201d", "\u2018", "\u2019", "\uff08", "\uff09", "\u300a", "\u300b", "\u3008",
-        "\u3009", "\u3010", "\u3011", "\u300e", "\u300f", "\u300c", "\u300d", "\ufe43",
-        "\ufe44", "\u3014", "\u3015", "\u2026", "\u2014", "\uff5e", "\ufe4f", "\uffe5",
-    };
+    static QString chineasePunctuations =
+        "\343\200\202\357\274\237\357\274\201\357\274\214"
+        "\343\200\201\357\274\233\357\274\232\342\200\234"
+        "\342\200\235\342\200\230\342\200\231\357\274\210"
+        "\357\274\211\343\200\212\343\200\213\343\200\210"
+        "\343\200\211\343\200\220\343\200\221\343\200\216"
+        "\343\200\217\343\200\214\343\200\215\357\271\203"
+        "\357\271\204\343\200\224\343\200\225\342\200\246"
+        "\342\200\224\357\275\236\357\271\217\357\277\245";
     static QString punctuations = R"(.,/#!$%\^&\*;:{}=\-_`~())";
 
     auto oldPos = textCursor().position();
     QPlainTextEdit::mouseDoubleClickEvent(event);
 
     auto cursor = textCursor();
-    if (!cursor.hasSelection())
-    {
+    if (!cursor.hasSelection()) {
         if (cursor.atBlockEnd()) {
             auto blockText = cursor.block().text();
             if (!blockText.isEmpty()) {
@@ -1163,12 +1165,12 @@ void QMarkdownTextEdit::mouseDoubleClickEvent(QMouseEvent *event) {
     auto text = cursor.selectedText();
     oldPos -= selStart;
     
-    QRegExp re("[" + chineasePunctuations.join("|") + "]+");
+    QRegExp re("[" + chineasePunctuations + "]+");
     auto index = text.lastIndexOf(re, oldPos);
     bool punctuationUnderCursor = false;
     if (index != -1) {
         if (index == oldPos || (cursor.atBlockEnd() && index == oldPos - 1)) {
-            index = text.lastIndexOf(QRegExp("[^" + chineasePunctuations.join("|") + "]"), oldPos);
+            index = text.lastIndexOf(QRegExp("[^" + chineasePunctuations + "]"), oldPos);
             punctuationUnderCursor = true;
         }
         selStart += index + 1;
