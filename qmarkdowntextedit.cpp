@@ -29,6 +29,7 @@
 #include <QPainter>
 #include <QScrollBar>
 #include <QClipboard>
+#include <utility>
 
 
 QMarkdownTextEdit::QMarkdownTextEdit(QWidget *parent, bool initHighlighter)
@@ -60,7 +61,7 @@ QMarkdownTextEdit::QMarkdownTextEdit(QWidget *parent, bool initHighlighter)
 //    new QShortcut( QKeySequence( "Ctrl+Alt+Down" ), this, SLOT( duplicateText() ) );
 
     // add a layout to the widget
-    QVBoxLayout *layout = new QVBoxLayout;
+    auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setMargin(0);
     layout->addStretch();
@@ -229,7 +230,8 @@ bool QMarkdownTextEdit::eventFilter(QObject *obj, QEvent *event) {
             }
         }
         else if (keyEvent == QKeySequence::Paste) {
-            if (QRegExp("[^\n]*\n$").exactMatch(qApp->clipboard()->text())) {
+            if (qApp->clipboard()->ownsClipboard() &&
+                QRegExp("[^\n]*\n$").exactMatch(qApp->clipboard()->text())) {
                 QTextCursor cursor = this->textCursor();
                 if (!cursor.hasSelection()) {
                     cursor.movePosition(QTextCursor::StartOfLine);
@@ -289,7 +291,7 @@ bool QMarkdownTextEdit::eventFilter(QObject *obj, QEvent *event) {
 
         return false;
     } else if (event->type() == QEvent::KeyRelease) {
-        QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+        auto *keyEvent = static_cast<QKeyEvent *>(event);
 
         // reset cursor if control key was released
         if (keyEvent->key() == Qt::Key_Control) {
@@ -298,7 +300,7 @@ bool QMarkdownTextEdit::eventFilter(QObject *obj, QEvent *event) {
 
         return false;
     } else if (event->type() == QEvent::MouseButtonRelease) {
-        QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
+        auto *mouseEvent = static_cast<QMouseEvent *>(event);
 
         // track `Ctrl + Click` in the text edit
         if ((obj == this->viewport()) &&
@@ -337,10 +339,10 @@ void QMarkdownTextEdit::focusOutEvent(QFocusEvent *event) {
  * @param closingCharacter
  * @return
  */
-bool QMarkdownTextEdit::handleBracketClosing(const QString &openingCharacter,
-                                             const QString &closingCharacter_) {
-    // check if bracket closing is enabled
-    if (!(_autoTextOptions & AutoTextOption::BracketClosing)) {
+bool QMarkdownTextEdit::handleBracketClosing(const QString& openingCharacter,
+                                             QString closingCharacter) {
+    // check if bracket closing or read-only are enabled
+    if (!(_autoTextOptions & AutoTextOption::BracketClosing) || isReadOnly()) {
         return false;
     }
 
@@ -349,7 +351,6 @@ bool QMarkdownTextEdit::handleBracketClosing(const QString &openingCharacter,
     // get the current text from the block (inserted character not included)
     QString text = cursor.block().text();
 
-    auto closingCharacter = closingCharacter_;
     if (closingCharacter.isEmpty()) {
         closingCharacter = openingCharacter;
     }
@@ -387,7 +388,6 @@ bool QMarkdownTextEdit::handleBracketClosing(const QString &openingCharacter,
             return false;
         }
     }
-
 
     // Remove whitespace at start of string (e.g. in multilevel-lists).
     text = text.remove(QRegExp("^\\s+"));
@@ -441,14 +441,13 @@ bool QMarkdownTextEdit::handleBracketClosing(const QString &openingCharacter,
  * @param closingCharacter
  * @return
  */
-bool QMarkdownTextEdit::bracketClosingCheck(const QString &openingCharacter,
-                                            const QString &closingCharacter_) {
-    // check if bracket closing is enabled
-    if (!(_autoTextOptions & AutoTextOption::BracketClosing)) {
+bool QMarkdownTextEdit::bracketClosingCheck(const QString& openingCharacter,
+                                            QString closingCharacter) {
+    // check if bracket closing or read-only are enabled
+    if (!(_autoTextOptions & AutoTextOption::BracketClosing) || isReadOnly()) {
         return false;
     }
 
-    auto closingCharacter = closingCharacter_;
     if (closingCharacter.isEmpty()) {
         closingCharacter = openingCharacter;
     }
@@ -502,9 +501,9 @@ bool QMarkdownTextEdit::bracketClosingCheck(const QString &openingCharacter,
  * @param quotationCharacter
  * @return
  */
-bool QMarkdownTextEdit::quotationMarkCheck(const QString &quotationCharacter) {
-    // check if bracket closing is enabled
-    if (!(_autoTextOptions & AutoTextOption::BracketClosing)) {
+bool QMarkdownTextEdit::quotationMarkCheck(const QString& quotationCharacter) {
+    // check if bracket closing or read-only are enabled
+    if (!(_autoTextOptions & AutoTextOption::BracketClosing) || isReadOnly()) {
         return false;
     }
 
@@ -541,8 +540,8 @@ bool QMarkdownTextEdit::quotationMarkCheck(const QString &quotationCharacter) {
  * @return
  */
 bool QMarkdownTextEdit::handleBracketRemoval() {
-    // check if bracket removal is enabled
-    if (!(_autoTextOptions & AutoTextOption::BracketRemoval)) {
+    // check if bracket removal or read-only are enabled
+    if (!(_autoTextOptions & AutoTextOption::BracketRemoval) || isReadOnly()) {
         return false;
     }
 
@@ -712,9 +711,9 @@ bool QMarkdownTextEdit::openLinkAtCursorPosition() {
  * @param urlString
  * @return
  */
-bool QMarkdownTextEdit::isValidUrl(const QString &urlString) {
+bool QMarkdownTextEdit::isValidUrl(const QString& urlString) {
     QRegularExpressionMatch match =
-            QRegularExpression("^\\w+:\\/\\/.+").match(urlString);
+            QRegularExpression(R"(^\w+:\/\/.+)").match(urlString);
     return match.hasMatch();
 }
 
@@ -727,7 +726,7 @@ bool QMarkdownTextEdit::isValidUrl(const QString &urlString) {
  *   "/path/to/my/file/QOwnNotes.pdf" if the operating system supports that
  *  handler
  */
-void QMarkdownTextEdit::openUrl(const QString &urlString) {
+void QMarkdownTextEdit::openUrl(const QString& urlString) {
     qDebug() << "QMarkdownTextEdit " << __func__ << " - 'urlString': "
         << urlString;
 
@@ -755,7 +754,7 @@ QPlainTextEditSearchWidget *QMarkdownTextEdit::searchWidget() {
  * @param urlSchemes
  */
 void QMarkdownTextEdit::setIgnoredClickUrlSchemata(
-        const QStringList &ignoredUrlSchemata) {
+        const QStringList& ignoredUrlSchemata) {
     _ignoredClickUrlSchemata = ignoredUrlSchemata;
 }
 
@@ -766,7 +765,7 @@ void QMarkdownTextEdit::setIgnoredClickUrlSchemata(
  * @return parsed urls
  */
 QMap<QString, QString> QMarkdownTextEdit::parseMarkdownUrlsFromText(
-        const QString &text) {
+        const QString& text) {
     QMap<QString, QString> urlMap;
     QRegularExpression regex;
     QRegularExpressionMatchIterator iterator;
@@ -784,7 +783,7 @@ QMap<QString, QString> QMarkdownTextEdit::parseMarkdownUrlsFromText(
 
     // match urls like this: [this url](http://mylink)
 //    QRegularExpression re("(\\[.*?\\]\\((.+?:\\/\\/.+?)\\))");
-    regex = QRegularExpression("(\\[.*?\\]\\((.+?)\\))");
+    regex = QRegularExpression(R"((\[.*?\]\((.+?)\)))");
     iterator = regex.globalMatch(text);
     while (iterator.hasNext()) {
         QRegularExpressionMatch match = iterator.next();
@@ -794,7 +793,7 @@ QMap<QString, QString> QMarkdownTextEdit::parseMarkdownUrlsFromText(
     }
 
     // match urls like this: http://mylink
-    regex = QRegularExpression("\\b\\w+?:\\/\\/[^\\s]+[^\\s>\\)]");
+    regex = QRegularExpression(R"(\b\w+?:\/\/[^\s]+[^\s>\)])");
     iterator = regex.globalMatch(text);
     while (iterator.hasNext()) {
         QRegularExpressionMatch match = iterator.next();
@@ -804,7 +803,7 @@ QMap<QString, QString> QMarkdownTextEdit::parseMarkdownUrlsFromText(
 
     // match reference urls like this: [this url][1] with this later:
     // [1]: http://domain
-    regex = QRegularExpression("\\[(.*?)\\]\\s?\\[(.+?)\\]");
+    regex = QRegularExpression(R"(\[(.*?)\]\s?\[(.+?)\])");
     iterator = regex.globalMatch(text);
     while (iterator.hasNext()) {
         QRegularExpressionMatch match = iterator.next();
@@ -856,7 +855,7 @@ QString QMarkdownTextEdit::getMarkdownUrlAtTextCursor(QTextCursor cursor) {
  * @return url string
  */
 QString QMarkdownTextEdit::getMarkdownUrlAtPosition(
-        const QString &text, int position) {
+        const QString& text, int position) {
     QString url;
 
     // get a map of parsed markdown urls with their link texts as key
@@ -952,8 +951,8 @@ void QMarkdownTextEdit::initSearchFrame(QWidget *searchFrame, bool darkMode) {
     QLayout *layout = _searchFrame->layout();
 
     // create a grid layout for the frame and add the search widget to it
-    if (layout == NULL) {
-        layout = new QVBoxLayout();
+    if (layout == nullptr) {
+        layout = new QVBoxLayout(_searchFrame);
         layout->setSpacing(0);
         layout->setContentsMargins(0, 0, 0, 0);
     }
@@ -975,23 +974,36 @@ void QMarkdownTextEdit::hide() {
  * Handles an entered return key
  */
 bool QMarkdownTextEdit::handleReturnEntered() {
+    if (isReadOnly()) {
+        return true;
+    }
+
     QTextCursor cursor = this->textCursor();
     int position = cursor.position();
 
     cursor.movePosition(QTextCursor::StartOfBlock, QTextCursor::KeepAnchor);
     QString currentLineText = cursor.selectedText();
 
-    // if return is pressed and there is just a list symbol then we want to
+    // if return is pressed and there is just an unordered list symbol then we want to
     // remove the list symbol
     // Valid listCharacters: '+ ', '-' , '* ', '+ [ ] ', '+ [x] ', '- [ ] ', '- [x] ', '* [ ] ', '* [x] '.
-    QRegularExpression regex("^(\\s*)([+|\\-|\\*] \\[(x| )\\]|[+\\-\\*])(\\s+)$");
+    QRegularExpression regex(R"(^(\s*)([+|\-|\*] \[(x| )\]|[+\-\*])(\s+)$)");
     QRegularExpressionMatchIterator iterator = regex.globalMatch(currentLineText);
     if (iterator.hasNext()) {
         cursor.removeSelectedText();
         return true;
     }
 
-    // Check if we are in a list.
+    // if return is pressed and there is just an ordered list symbol then we want to
+    // remove the list symbol
+    regex = QRegularExpression(R"(^(\s*)(\d+\.)(\s+)$)");
+    iterator = regex.globalMatch(currentLineText);
+    if (iterator.hasNext()) {
+        cursor.removeSelectedText();
+        return true;
+    }
+
+    // Check if we are in an unordered list.
     // We are in a list when we have '* ', '- ' or '+ ', possibly with preceding
     // whitespace. If e.g. user has entered '**text**' and pressed enter - we
     // don't want do anymore list-stuff.
@@ -1003,7 +1015,7 @@ bool QMarkdownTextEdit::handleReturnEntered() {
         // if the current line starts with a list character (possibly after
         // whitespaces) add the whitespaces at the next line too
         // Valid listCharacters: '+ ', '-' , '* ', '+ [ ] ', '+ [x] ', '- [ ] ', '- [x] ', '* [ ] ', '* [x] '.
-        regex = QRegularExpression("^(\\s*)([+|\\-|\\*] \\[(x| )\\]|[+\\-\\*])(\\s+)");
+        regex = QRegularExpression(R"(^(\s*)([+|\-|\*] \[(x| )\]|[+\-\*])(\s+))");
         iterator = regex.globalMatch(currentLineText);
         if (iterator.hasNext()) {
             QRegularExpressionMatch match = iterator.next();
@@ -1020,6 +1032,39 @@ bool QMarkdownTextEdit::handleReturnEntered() {
         }
     }
 
+    // check for ordered lists and increment the list number in the next line
+    regex = QRegularExpression(R"(^(\s*)(\d+)\.(\s+))");
+    iterator = regex.globalMatch(currentLineText);
+    if (iterator.hasNext()) {
+        QRegularExpressionMatch match = iterator.next();
+        QString whitespaces = match.captured(1);
+        uint listNumber = match.captured(2).toUInt();
+        QString whitespaceCharacter = match.captured(3);
+
+        cursor.setPosition(position);
+        cursor.insertText("\n" + whitespaces + QString::number(listNumber + 1) +
+        "." + whitespaceCharacter);
+
+        // scroll to the cursor if we are at the bottom of the document
+        ensureCursorVisible();
+        return true;
+    }
+
+    // intent next line with same whitespaces as in current line
+    regex = QRegularExpression(R"(^(\s+))");
+    iterator = regex.globalMatch(currentLineText);
+    if (iterator.hasNext()) {
+        QRegularExpressionMatch match = iterator.next();
+        QString whitespaces = match.captured(1);
+
+        cursor.setPosition(position);
+        cursor.insertText("\n" + whitespaces);
+
+        // scroll to the cursor if we are at the bottom of the document
+        ensureCursorVisible();
+        return true;
+    }
+
     return false;
 }
 
@@ -1027,6 +1072,10 @@ bool QMarkdownTextEdit::handleReturnEntered() {
  * Handles entered tab or reverse tab keys
  */
 bool QMarkdownTextEdit::handleTabEntered(bool reverse) {
+    if (isReadOnly()) {
+        return true;
+    }
+
     QTextCursor cursor = this->textCursor();
 
     // only check for lists if we haven't a text selected
@@ -1034,9 +1083,9 @@ bool QMarkdownTextEdit::handleTabEntered(bool reverse) {
         cursor.movePosition(QTextCursor::StartOfLine, QTextCursor::KeepAnchor);
         QString currentLineText = cursor.selectedText();
 
-        // check if we want to indent or un-indent a list
+        // check if we want to indent or un-indent an ordered list
         // Valid listCharacters: '+ ', '-' , '* ', '+ [ ] ', '+ [x] ', '- [ ] ', '- [x] ', '* [ ] ', '* [x] '.
-        QRegularExpression re("^(\\s*)([+|\\-|\\*] \\[(x| )\\]|[+\\-\\*])(\\s+)$");
+        QRegularExpression re(R"(^(\s*)([+|\-|\*] \[(x| )\]|[+\-\*])(\s+)$)");
         QRegularExpressionMatchIterator i = re.globalMatch(currentLineText);
 
         if (i.hasNext()) {
@@ -1053,6 +1102,28 @@ bool QMarkdownTextEdit::handleTabEntered(bool reverse) {
             }
 
             cursor.insertText(whitespaces + listCharacter + whitespaceCharacter);
+            return true;
+        }
+
+        // check if we want to indent or un-indent an ordered list
+        re = QRegularExpression(R"(^(\s*)(\d+)\.(\s+)$)");
+        i = re.globalMatch(currentLineText);
+
+        if (i.hasNext()) {
+            QRegularExpressionMatch match = i.next();
+            QString whitespaces = match.captured(1);
+            QString listCharacter = match.captured(2);
+            QString whitespaceCharacter = match.captured(3);
+
+            // add or remove one tabulator key
+            if (reverse) {
+                whitespaces.chop(1);
+            } else {
+                whitespaces += "\t";
+            }
+
+            cursor.insertText(whitespaces + listCharacter + "." +
+            whitespaceCharacter);
             return true;
         }
     }
@@ -1143,7 +1214,7 @@ void QMarkdownTextEdit::mouseDoubleClickEvent(QMouseEvent *event) {
         }
         return;
     }
-    
+
     auto selStart = cursor.selectionStart();
     auto selEnd = cursor.selectionEnd();
 
@@ -1166,7 +1237,7 @@ void QMarkdownTextEdit::mouseDoubleClickEvent(QMouseEvent *event) {
 
     auto text = cursor.selectedText();
     oldPos -= selStart;
-    
+
     QRegExp re("[" + chineasePunctuations + "]+");
     auto index = text.lastIndexOf(re, oldPos);
     bool punctuationUnderCursor = false;
@@ -1184,7 +1255,7 @@ void QMarkdownTextEdit::mouseDoubleClickEvent(QMouseEvent *event) {
         else
             selEnd -= text.length() - (index + re.matchedLength());
     }
-    
+
     if (selEnd - selStart == text.length())
         return;
 
@@ -1205,4 +1276,21 @@ void QMarkdownTextEdit::setReadOnly(bool ro) {
     // attempted to fix a problem with Chinese and Japanese input methods
     // @see https://github.com/pbek/QOwnNotes/issues/976
     setAttribute(Qt::WA_InputMethodEnabled, !isReadOnly());
+}
+
+void QMarkdownTextEdit::doSearch(
+        const QString &searchText,
+        QPlainTextEditSearchWidget::SearchMode searchMode) {
+    _searchWidget->setSearchText(searchText);
+    _searchWidget->setSearchMode(searchMode);
+    _searchWidget->doSearchCount();
+    _searchWidget->activate(false);
+}
+
+void QMarkdownTextEdit::hideSearchWidget(bool reset) {
+    _searchWidget->deactivate();
+
+    if (reset) {
+        _searchWidget->reset();
+    }
 }

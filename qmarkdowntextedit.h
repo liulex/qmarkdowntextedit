@@ -40,16 +40,20 @@ public:
     explicit QMarkdownTextEdit(QWidget *parent = 0, bool initHighlighter = true);
     MarkdownHighlighter *highlighter();
     QPlainTextEditSearchWidget *searchWidget();
-    void setIgnoredClickUrlSchemata(const QStringList &ignoredUrlSchemata);
-    virtual void openUrl(const QString &urlString);
+
+    void setIgnoredClickUrlSchemata(const QStringList& ignoredUrlSchemata);
+    virtual void openUrl(const QString& urlString);
     QString getMarkdownUrlAtTextCursor(QTextCursor cursor);
-    QString getMarkdownUrlAtPosition(const QString &text, int position);
+    QString getMarkdownUrlAtPosition(const QString& text, int position);
     void initSearchFrame(QWidget *searchFrame, bool darkMode = false);
     void setAutoTextOptions(AutoTextOptions options);
     void setHighlightingEnabled(bool enabled);
-    static bool isValidUrl(const QString &urlString);
+    static bool isValidUrl(const QString& urlString);
     void resetMouseCursor() const;
     void setReadOnly(bool ro);
+    void doSearch(const QString &searchText,
+                  QPlainTextEditSearchWidget::SearchMode searchMode = QPlainTextEditSearchWidget::SearchMode::PlainTextMode);
+    void hideSearchWidget(bool reset);
 
 public slots:
     void duplicateText();
@@ -74,13 +78,13 @@ protected:
     bool eventFilter(QObject *obj, QEvent *event);
     bool increaseSelectedTextIndention(bool reverse);
     bool handleTabEntered(bool reverse);
-    QMap<QString, QString> parseMarkdownUrlsFromText(const QString &text);
+    QMap<QString, QString> parseMarkdownUrlsFromText(const QString& text);
     bool handleReturnEntered();
-    bool handleBracketClosing(const QString &openingCharacter,
-                              const QString &closingCharacter = "");
-    bool bracketClosingCheck(const QString &openingCharacter,
-                             const QString &closingCharacter);
-    bool quotationMarkCheck(const QString &quotationCharacter);
+    bool handleBracketClosing(const QString& openingCharacter,
+                              QString closingCharacter = "");
+    bool bracketClosingCheck(const QString& openingCharacter,
+                             QString closingCharacter);
+    bool quotationMarkCheck(const QString& quotationCharacter);
     void focusOutEvent(QFocusEvent *event);
     void paintEvent(QPaintEvent *e);
     void mouseDoubleClickEvent(QMouseEvent *event);

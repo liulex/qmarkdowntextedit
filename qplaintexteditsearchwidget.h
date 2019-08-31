@@ -36,9 +36,14 @@ public:
     bool doSearch(bool searchDown = true, bool allowRestartAtTop = true);
     void setDarkMode(bool enabled);
     ~QPlainTextEditSearchWidget();
+    void setSearchText(const QString &searchText);
+    void setSearchMode(SearchMode searchMode);
+    void activate(bool focus);
 
 private:
     Ui::QPlainTextEditSearchWidget *ui;
+    int _searchResultCount;
+    int _currentSearchResult;
 
 protected:
     QPlainTextEdit *_textEdit;
@@ -54,7 +59,13 @@ public slots:
     void activateReplace();
     bool doReplace(bool forAll = false);
     void doReplaceAll();
+    void reset();
+    void doSearchCount();
 
 protected slots:
     void searchLineEditTextChanged(const QString &arg1);
+    void updateSearchCountLabelText();
+private slots:
+    void on_modeComboBox_currentIndexChanged(int index);
+    void on_matchCaseSensitiveButton_toggled(bool checked);
 };

@@ -26,6 +26,11 @@ QPlainTextEditSearchWidget::QPlainTextEditSearchWidget(QPlainTextEdit *parent) :
     _textEdit = parent;
     _darkMode = false;
     hide();
+    ui->searchCountLabel->setStyleSheet("* {color: grey}");
+    // hiding will leave a open space in the horizontal layout
+    ui->searchCountLabel->setEnabled(false);
+    _currentSearchResult = 0;
+    _searchResultCount = 0;
 
     QObject::connect(ui->closeButton, SIGNAL(clicked()),
                      this, SLOT(deactivate()));
@@ -66,19 +71,7 @@ QPlainTextEditSearchWidget::~QPlainTextEditSearchWidget() {
 }
 
 void QPlainTextEditSearchWidget::activate() {
-    setReplaceMode(false);
-    show();
-
-    // preset the selected text as search text if there is any and there is no
-    // other search text
-    QString selectedText = _textEdit->textCursor().selectedText();
-    if (!selectedText.isEmpty() && ui->searchLineEdit->text().isEmpty()) {
-        ui->searchLineEdit->setText(selectedText);
-    }
-
-    ui->searchLineEdit->setFocus();
-    ui->searchLineEdit->selectAll();
-    doSearchDown();
+    activate(true);
 }
 
 void QPlainTextEditSearchWidget::activateReplace() {
@@ -109,7 +102,7 @@ void QPlainTextEditSearchWidget::setReplaceMode(bool enabled) {
 
 bool QPlainTextEditSearchWidget::eventFilter(QObject *obj, QEvent *event) {
     if (event->type() == QEvent::KeyPress) {
-        QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+        auto *keyEvent = static_cast<QKeyEvent *>(event);
 
         if (keyEvent->key() == Qt::Key_Escape) {
             deactivate();
@@ -140,7 +133,8 @@ bool QPlainTextEditSearchWidget::eventFilter(QObject *obj, QEvent *event) {
 }
 
 void QPlainTextEditSearchWidget::searchLineEditTextChanged(const QString &arg1) {
-    Q_UNUSED(arg1);
+    Q_UNUSED(arg1)
+    doSearchCount();
     doSearchDown();
 }
 
@@ -228,11 +222,16 @@ bool QPlainTextEditSearchWidget::doSearch(bool searchDown, bool allowRestartAtTo
         options |= QTextDocument::FindCaseSensitively;
     }
 
-    bool found;
-    if (searchMode == RegularExpressionMode) {
-        found = _textEdit->find(QRegExp(text), options);
-    } else {
-        found = _textEdit->find(text, options);
+    bool found = searchMode == RegularExpressionMode ?
+            _textEdit->find(QRegExp(text), options) :
+            _textEdit->find(text, options);
+
+    if (found) {
+        _currentSearchResult = std::min(searchDown ?
+                ++_currentSearchResult : --_currentSearchResult,
+                _searchResultCount);
+
+        updateSearchCountLabelText();
     }
 
     // start at the top (or bottom) if not found
@@ -241,9 +240,14 @@ bool QPlainTextEditSearchWidget::doSearch(bool searchDown, bool allowRestartAtTo
 
         _textEdit->moveCursor(
                 searchDown ? QTextCursor::Start : QTextCursor::End);
-        found = _textEdit->find(text, options);
+        found = searchMode == RegularExpressionMode ?
+                        _textEdit->find(QRegExp(text), options) :
+                        _textEdit->find(text, options);
 
-        if (!found) {
+        if (found) {
+            _currentSearchResult = searchDown ? 1 : _searchResultCount;
+            updateSearchCountLabelText();
+        } else {
             // restore the last cursor position if not found
             cursor.setPosition(position);
             _textEdit->setTextCursor(cursor);
@@ -274,6 +278,96 @@ bool QPlainTextEditSearchWidget::doSearch(bool searchDown, bool allowRestartAtTo
     return found;
 }
 
+/**
+ * @brief Counts the search results
+ */
+void QPlainTextEditSearchWidget::doSearchCount() {
+    QString text = ui->searchLineEdit->text();
+    int searchMode = ui->modeComboBox->currentIndex();
+    _currentSearchResult = 0;
+
+    QFlags<QTextDocument::FindFlag> options = QTextDocument::FindFlag(0);
+    if (searchMode == WholeWordsMode) {
+        options |= QTextDocument::FindWholeWords;
+    }
+
+    if (ui->matchCaseSensitiveButton->isChecked()) {
+        options |= QTextDocument::FindCaseSensitively;
+    }
+
+    // Note that we are moving the anchor, so the search will start from the top again!
+    // Alternative: Restore cursor position afterwards, but then we will not know
+    //              at what _currentSearchResult we currently are
+    _textEdit->moveCursor(QTextCursor::Start, QTextCursor::MoveAnchor);
+
+    bool found;
+    _searchResultCount = 0;
+
+    do {
+        found = searchMode == RegularExpressionMode ?
+                _textEdit->find(QRegExp(text), options) :
+                _textEdit->find(text, options);
+        if (found) {
+            _searchResultCount++;
+        }
+    } while (found);
+
+    updateSearchCountLabelText();
+}
+
 void QPlainTextEditSearchWidget::setDarkMode(bool enabled) {
     _darkMode = enabled;
+}
+
+void QPlainTextEditSearchWidget::setSearchText(const QString &searchText) {
+    ui->searchLineEdit->setText(searchText);
+}
+
+void QPlainTextEditSearchWidget::setSearchMode(SearchMode searchMode) {
+    ui->modeComboBox->setCurrentIndex(searchMode);
+}
+
+void QPlainTextEditSearchWidget::activate(bool focus) {
+    setReplaceMode(ui->modeComboBox->currentIndex() != SearchMode::PlainTextMode);
+    show();
+
+    // preset the selected text as search text if there is any and there is no
+    // other search text
+    QString selectedText = _textEdit->textCursor().selectedText();
+    if (!selectedText.isEmpty() && ui->searchLineEdit->text().isEmpty()) {
+        ui->searchLineEdit->setText(selectedText);
+    }
+
+    if (focus) {
+        ui->searchLineEdit->setFocus();
+    }
+
+    ui->searchLineEdit->selectAll();
+    doSearchDown();
+}
+
+void QPlainTextEditSearchWidget::reset() {
+    ui->searchLineEdit->clear();
+    setSearchMode(SearchMode::PlainTextMode);
+    setReplaceMode(false);
+    ui->searchCountLabel->setEnabled(false);
+}
+
+void QPlainTextEditSearchWidget::updateSearchCountLabelText() {
+    ui->searchCountLabel->setEnabled(true);
+    ui->searchCountLabel->setText(QString("%1/%2").arg(
+            _currentSearchResult == 0 ? "-" : QString::number(_currentSearchResult),
+            _searchResultCount == 0 ? "-" : QString::number(_searchResultCount)));
+}
+
+void QPlainTextEditSearchWidget::on_modeComboBox_currentIndexChanged(int index) {
+    Q_UNUSED(index)
+    doSearchCount();
+    doSearchDown();
+}
+
+void QPlainTextEditSearchWidget::on_matchCaseSensitiveButton_toggled(bool checked) {
+    Q_UNUSED(checked)
+    doSearchCount();
+    doSearchDown();
 }

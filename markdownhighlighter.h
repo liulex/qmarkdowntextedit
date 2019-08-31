@@ -34,9 +34,9 @@ public:
         None = 0,
         FullyHighlightedBlockQuote = 0x01
     };
-    Q_DECLARE_FLAGS(HighlightingOptions, HighlightingOption);
+    Q_DECLARE_FLAGS(HighlightingOptions, HighlightingOption)
 
-    MarkdownHighlighter(QTextDocument *parent = 0,
+    MarkdownHighlighter(QTextDocument *parent = nullptr,
                         HighlightingOptions highlightingOptions =
                         HighlightingOption::None);
 
@@ -69,6 +69,7 @@ public:
         CodeBlockEnd = 100,
         HeadlineEnd
     };
+    Q_ENUMS(HighlighterState)
 
 //    enum BlockState {
 //        NoBlockState = 0,
@@ -94,30 +95,33 @@ protected slots:
 
 protected:
     struct HighlightingRule {
+        HighlightingRule(const HighlighterState state_) : state(state_) {}
+        HighlightingRule() = default;
+
         QRegularExpression pattern;
-        HighlighterState state;
-        int capturingGroup;
-        int maskedGroup;
-        bool useStateAsCurrentBlockState;
-        bool disableIfCurrentStateIsSet;
+        HighlighterState state = NoState;
+        int capturingGroup = 0;
+        int maskedGroup = 0;
+        bool useStateAsCurrentBlockState = false;
+        bool disableIfCurrentStateIsSet = false;
     };
 
     void highlightBlock(const QString &text) Q_DECL_OVERRIDE;
 
     void initTextFormats(int defaultFontSize = 12);
 
-    void highlightMarkdown(const QString &text);
+    void highlightMarkdown(const QString& text);
 
-    void highlightHeadline(const QString &text);
+    void highlightHeadline(const QString& text);
 
     void highlightAdditionalRules(QVector<HighlightingRule> &rules,
-                                  const QString &text);
+                                  const QString& text);
 
-    void highlightCodeBlock(const QString &text);
+    void highlightCodeBlock(const QString& text);
 
     void highlightCommentBlock(const QString &text);
 
-    void addDirtyBlock(const QTextBlock &block);
+    void addDirtyBlock(const QTextBlock& block);
 
     void reHighlightDirtyBlocks();
 
