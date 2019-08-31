@@ -81,8 +81,8 @@ public:
 //        CodeBlockEnd
 //    };
 
-    void setTextFormats(QHash<HighlighterState, QTextCharFormat> formats);
-    void setTextFormat(HighlighterState state, QTextCharFormat format);
+    void setTextFormats(const QHash<HighlighterState, QTextCharFormat>& formats);
+    void setTextFormat(HighlighterState state, const QTextCharFormat& format);
     void clearDirtyBlocks();
     void setHighlightingOptions(HighlightingOptions options);
     void initHighlightingRules();

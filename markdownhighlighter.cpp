@@ -408,8 +408,8 @@ void MarkdownHighlighter::initTextFormats(int defaultFontSize) {
  * @param formats
  */
 void MarkdownHighlighter::setTextFormats(
-        QHash<HighlighterState, QTextCharFormat> formats) {
-    _formats = std::move(formats);
+    const QHash<HighlighterState, QTextCharFormat>& formats) {
+    _formats = formats;
 }
 
 /**
@@ -418,8 +418,8 @@ void MarkdownHighlighter::setTextFormats(
  * @param formats
  */
 void MarkdownHighlighter::setTextFormat(HighlighterState state,
-                                        QTextCharFormat format) {
-    _formats[state] = std::move(format);
+                                        const QTextCharFormat& format) {
+    _formats[state] = format;
 }
 
 /**
