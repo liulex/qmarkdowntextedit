@@ -213,24 +213,24 @@ void MarkdownHighlighter::initHighlightingRules() {
         HighlightingRule rule(HighlighterState::Link);
 
         // highlight urls without any other markup
-        rule.pattern = QRegularExpression(R"(\b\w+?:\/\/[^\s]+)");
+        rule.pattern = QRegularExpression(R"(\b\w+?:\/\/[^\)\s]+)");
         rule.capturingGroup = 0;
         _highlightingRulesAfter.append(rule);
 
         //    rule.pattern = QRegularExpression("<(.+?:\\/\\/.+?)>");
-        rule.pattern = QRegularExpression("<([^\\s`][^`]*?[^\\s`])>");
+        rule.pattern = QRegularExpression(R"(<([^\s`][^`]*?[^\s`])>)");
         rule.capturingGroup = 1;
         _highlightingRulesAfter.append(rule);
 
         // highlight urls with title
         //    rule.pattern = QRegularExpression("\\[(.+?)\\]\\(.+?://.+?\\)");
         //    rule.pattern = QRegularExpression("\\[(.+?)\\]\\(.+\\)\\B");
-        rule.pattern = QRegularExpression(R"(\[([^\[\]]+)\]\((\S+|.+?)\)\B)");
+        rule.pattern = QRegularExpression(R"(\[([^\[\]]+)\]\(([^\)\s]+)\)\B)");
         _highlightingRulesAfter.append(rule);
 
         // highlight urls with empty title
         //    rule.pattern = QRegularExpression("\\[\\]\\((.+?://.+?)\\)");
-        rule.pattern = QRegularExpression(R"(\[\]\((.+?)\))");
+        rule.pattern = QRegularExpression(R"(\[\]\(([^\)\s]+)\))");
         _highlightingRulesAfter.append(rule);
 
         // highlight email links
