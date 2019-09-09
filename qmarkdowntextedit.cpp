@@ -1242,7 +1242,7 @@ void QMarkdownTextEdit::mouseDoubleClickEvent(QMouseEvent *event) {
     auto index = text.lastIndexOf(re, oldPos);
     bool punctuationUnderCursor = false;
     if (index != -1) {
-        if (index == oldPos || (cursor.atBlockEnd() && index == oldPos - 1)) {
+        if (index == oldPos || (cursor.atBlockEnd() && oldPos == text.length() && index == oldPos - 1)) {
             index = text.lastIndexOf(QRegExp("[^" + chineasePunctuations + "]"), oldPos);
             punctuationUnderCursor = true;
         }
