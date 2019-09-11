@@ -226,11 +226,13 @@ void MarkdownHighlighter::initHighlightingRules() {
         //    rule.pattern = QRegularExpression("\\[(.+?)\\]\\(.+?://.+?\\)");
         //    rule.pattern = QRegularExpression("\\[(.+?)\\]\\(.+\\)\\B");
         rule.pattern = QRegularExpression(R"(\[([^\[\]]+)\]\(([^\)\s]+)\)\B)");
+        rule.capturingGroup = 2;
         _highlightingRulesAfter.append(rule);
 
         // highlight urls with empty title
         //    rule.pattern = QRegularExpression("\\[\\]\\((.+?://.+?)\\)");
         rule.pattern = QRegularExpression(R"(\[\]\(([^\)\s]+)\))");
+        rule.capturingGroup = 1;
         _highlightingRulesAfter.append(rule);
 
         // highlight email links
