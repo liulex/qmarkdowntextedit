@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2019 Patrizio Bekerle -- http://www.bekerle.com
+ * Copyright (c) 2014-2020 Patrizio Bekerle -- <patrizio@bekerle.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,7 +36,8 @@ QMarkdownTextEdit::QMarkdownTextEdit(QWidget *parent, bool initHighlighter)
         : QPlainTextEdit(parent) {
     installEventFilter(this);
     viewport()->installEventFilter(this);
-    _autoTextOptions = AutoTextOption::None;
+    _autoTextOptions = AutoTextOption::BracketClosing;
+
     _openingCharacters = QStringList() << "(" << "[" << "{" << "<" << "*"
                                        << "\"" << "'" << "_" << "~";
     _closingCharacters = QStringList() << ")" << "]" << "}" << ">" << "*"
@@ -54,7 +55,12 @@ QMarkdownTextEdit::QMarkdownTextEdit(QWidget *parent, bool initHighlighter)
     // set the tab stop to the width of 4 spaces in the editor
     const int tabStop = 4;
     QFontMetrics metrics(font);
+
+#if QT_VERSION < QT_VERSION_CHECK(5,11,0)
     setTabStopWidth(tabStop * metrics.width(' '));
+#else
+    setTabStopDistance(tabStop * metrics.horizontalAdvance(' '));
+#endif
 
     // add shortcuts for duplicating text
 //    new QShortcut( QKeySequence( "Ctrl+D" ), this, SLOT( duplicateText() ) );
@@ -73,6 +79,10 @@ QMarkdownTextEdit::QMarkdownTextEdit(QWidget *parent, bool initHighlighter)
 
     QObject::connect(this, SIGNAL(textChanged()),
                      this, SLOT(adjustRightMargin()));
+    QObject::connect(this, SIGNAL(cursorPositionChanged()),
+                     this, SLOT(centerTheCursor()));
+
+    updateSettings();
 
     // workaround for disabled signals up initialization
     QTimer::singleShot(300, this, SLOT(adjustRightMargin()));
@@ -246,13 +256,15 @@ bool QMarkdownTextEdit::eventFilter(QObject *obj, QEvent *event) {
             return true;
 #ifndef Q_OS_MAC
         } else if ((keyEvent->key() == Qt::Key_Down) &&
-                 keyEvent->modifiers().testFlag(Qt::ControlModifier)) {
+                 keyEvent->modifiers().testFlag(Qt::ControlModifier) &&
+                 !keyEvent->modifiers().testFlag(Qt::ShiftModifier)) {
             // scroll the page down
             auto *scrollBar = verticalScrollBar();
             scrollBar->setSliderPosition(scrollBar->sliderPosition() + 1);
             return true;
         } else if ((keyEvent->key() == Qt::Key_Up) &&
-                 keyEvent->modifiers().testFlag(Qt::ControlModifier)) {
+                 keyEvent->modifiers().testFlag(Qt::ControlModifier) &&
+                 !keyEvent->modifiers().testFlag(Qt::ShiftModifier)) {
             // scroll the page up
             auto *scrollBar = verticalScrollBar();
             scrollBar->setSliderPosition(scrollBar->sliderPosition() - 1);
@@ -287,6 +299,21 @@ bool QMarkdownTextEdit::eventFilter(QObject *obj, QEvent *event) {
             _searchWidget->doSearch(
                     !keyEvent->modifiers().testFlag(Qt::ShiftModifier));
             return true;
+        } else if ((keyEvent->key() == Qt::Key_Z) &&
+                   (keyEvent->modifiers().testFlag(Qt::ControlModifier)) &&
+                   !(keyEvent->modifiers().testFlag(Qt::ShiftModifier))) {
+            undo();
+            return true;
+        } else if ((keyEvent->key() == Qt::Key_Down) &&
+                   (keyEvent->modifiers().testFlag(Qt::ControlModifier)) &&
+                   (keyEvent->modifiers().testFlag(Qt::ShiftModifier))) {
+            moveTextUpDown(false);
+            return true;
+        } else if ((keyEvent->key() == Qt::Key_Up) &&
+                   (keyEvent->modifiers().testFlag(Qt::ControlModifier)) &&
+                   (keyEvent->modifiers().testFlag(Qt::ShiftModifier))) {
+            moveTextUpDown(true);
+            return true;
         }
 
         return false;
@@ -300,6 +327,7 @@ bool QMarkdownTextEdit::eventFilter(QObject *obj, QEvent *event) {
 
         return false;
     } else if (event->type() == QEvent::MouseButtonRelease) {
+        _mouseButtonDown = false;
         auto *mouseEvent = static_cast<QMouseEvent *>(event);
 
         // track `Ctrl + Click` in the text edit
@@ -311,9 +339,178 @@ bool QMarkdownTextEdit::eventFilter(QObject *obj, QEvent *event) {
             openLinkAtCursorPosition();
             return true;
         }
+    } else if (event->type() == QEvent::MouseButtonPress) {
+        _mouseButtonDown = true;
+    } else if (event->type() == QEvent::MouseButtonDblClick) {
+        _mouseButtonDown = true;
     }
 
     return QPlainTextEdit::eventFilter(obj, event);
+}
+
+void QMarkdownTextEdit::centerTheCursor() {
+    if (_mouseButtonDown || !_centerCursor) {
+        return;
+    }
+
+    // centers the cursor every time, but not on the top and bottom
+    // bottom is done by setCenterOnScroll() in updateSettings()
+    centerCursor();
+
+/*
+    QRect cursor = cursorRect();
+    QRect vp = viewport()->rect();
+
+    qDebug() << __func__ << " - 'cursor.top': " << cursor.top();
+    qDebug() << __func__ << " - 'cursor.bottom': " << cursor.bottom();
+    qDebug() << __func__ << " - 'vp': " << vp.bottom();
+
+    int bottom = 0;
+    int top = 0;
+
+    qDebug() << __func__ << " - 'viewportMargins().top()': "
+             << viewportMargins().top();
+
+    qDebug() << __func__ << " - 'viewportMargins().bottom()': "
+             << viewportMargins().bottom();
+
+    int vpBottom = viewportMargins().top() + viewportMargins().bottom() + vp.bottom();
+    int vpCenter = vpBottom / 2;
+    int cBottom = cursor.bottom() + viewportMargins().top();
+
+    qDebug() << __func__ << " - 'vpBottom': " << vpBottom;
+    qDebug() << __func__ << " - 'vpCenter': " << vpCenter;
+    qDebug() << __func__ << " - 'cBottom': " << cBottom;
+
+
+    if (cBottom >= vpCenter) {
+        bottom = cBottom + viewportMargins().top() / 2 + viewportMargins().bottom() / 2 - (vp.bottom() / 2);
+//        bottom = cBottom - (vp.bottom() / 2);
+//        bottom *= 1.5;
+    }
+
+//    setStyleSheet(QString("QPlainTextEdit {padding-bottom: %1px;}").arg(QString::number(bottom)));
+
+//    if (cursor.top() < (vp.bottom() / 2)) {
+//        top = (vp.bottom() / 2) - cursor.top() + viewportMargins().top() / 2 + viewportMargins().bottom() / 2;
+////        top *= -1;
+////        bottom *= 1.5;
+//    }
+    qDebug() << __func__ << " - 'top': " << top;
+    qDebug() << __func__ << " - 'bottom': " << bottom;
+    setViewportMargins(0,top,0, bottom);
+
+
+//    QScrollBar* scrollbar = verticalScrollBar();
+//
+//    qDebug() << __func__ << " - 'scrollbar->value();': " << scrollbar->value();;
+//    qDebug() << __func__ << " - 'scrollbar->maximum();': "
+//             << scrollbar->maximum();;
+
+
+//    scrollbar->setValue(scrollbar->value() - offset.y());
+//
+//    setViewportMargins
+
+//    setViewportMargins(0, 0, 0, bottom);
+*/
+}
+
+/*
+ * Handle the undo event ourselves
+ * Retains the selected text as selected after undo if
+ * bracket closing was used otherwise performs normal undo
+ */
+void QMarkdownTextEdit::undo()
+{
+    QTextCursor cursor = textCursor();
+    //if no text selected, call undo
+    if(!cursor.hasSelection()) {
+       QPlainTextEdit::undo();
+       return;
+    }
+
+    //if text is selected and bracket closing was used
+    //we retain our selection
+    if (handleBracketClosingUsed) {
+        //get the selection
+        int selectionEnd = cursor.selectionEnd();
+        int selectionStart = cursor.selectionStart();
+        //call undo
+        QPlainTextEdit::undo();
+        //select again
+        cursor.setPosition(selectionStart-1);
+        cursor.setPosition(selectionEnd-1, QTextCursor::KeepAnchor);
+        this->setTextCursor(cursor);
+        handleBracketClosingUsed = false;
+        return;
+    //else if text was selected but bracket closing wasn't used
+    //do normal undo
+    } else {
+        QPlainTextEdit::undo();
+        return;
+    }
+}
+
+void QMarkdownTextEdit::moveTextUpDown(bool up){
+
+    QTextCursor cursor = textCursor();
+    QTextCursor move = cursor;
+
+    move.setVisualNavigation(false);
+
+    move.beginEditBlock();     //open an edit block to keep undo operations sane
+    bool hasSelection = cursor.hasSelection();
+
+    if (hasSelection) {
+        //if there's a selection inside the block, we select the whole block
+        move.setPosition(cursor.selectionStart());
+        move.movePosition(QTextCursor::StartOfBlock);
+        move.setPosition(cursor.selectionEnd(), QTextCursor::KeepAnchor);
+        move.movePosition(move.atBlockStart() ? QTextCursor::Left: QTextCursor::EndOfBlock,
+                          QTextCursor::KeepAnchor);
+    } else {
+        move.movePosition(QTextCursor::StartOfBlock);
+        move.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+    }
+
+    //get the text of the current block
+    QString text = move.selectedText();
+
+    move.movePosition(QTextCursor::Right, QTextCursor::KeepAnchor);
+    move.removeSelectedText();
+
+    if (up) { // up key
+        move.movePosition(QTextCursor::PreviousBlock);
+        move.insertBlock();
+        move.movePosition(QTextCursor::Left);
+    } else { //down key
+        move.movePosition(QTextCursor::EndOfBlock);
+        if (move.atBlockStart()) { // empty block
+            move.movePosition(QTextCursor::NextBlock);
+            move.insertBlock();
+            move.movePosition(QTextCursor::Left);
+        } else {
+            move.insertBlock();
+        }
+    }
+
+    int start = move.position();
+    move.clearSelection();
+    move.insertText(text);
+    int end = move.position();
+
+    //reselect
+    if (hasSelection) {
+        move.setPosition(end);
+        move.setPosition(start, QTextCursor::KeepAnchor);
+    } else {
+        move.setPosition(start);
+    }
+
+    move.endEditBlock();
+
+    setTextCursor(move);
 }
 
 /**
@@ -360,21 +557,19 @@ bool QMarkdownTextEdit::handleBracketClosing(const QString& openingCharacter,
     // When user currently has text selected, we prepend the openingCharacter
     // and append the closingCharacter. E.g. 'text' -> '(text)'. We keep the
     // current selectedText selected.
-    //
-    // TODO(sanderboom): how to make ctrl-z keep the selectedText selected?
     if (selectedText != "") {
         // Insert. The selectedText is overwritten.
-        cursor.insertText(openingCharacter);
-        cursor.insertText(selectedText);
-        cursor.insertText(closingCharacter);
+        QString newText = openingCharacter + selectedText + closingCharacter;
+        cursor.insertText(newText);
 
         // Re-select the selectedText.
         int selectionEnd = cursor.position() - 1;
         int selectionStart = selectionEnd - selectedText.length();
+
         cursor.setPosition(selectionStart);
         cursor.setPosition(selectionEnd, QTextCursor::KeepAnchor);
         this->setTextCursor(cursor);
-
+        handleBracketClosingUsed = true;
         return true;
     } else {
         // if not text was selected check if we are inside the text
@@ -608,31 +803,37 @@ void QMarkdownTextEdit::updateViewportCursor() {
  * (if there is a text selected) in the noteTextEdit
  * @return
  */
-bool QMarkdownTextEdit::increaseSelectedTextIndention(bool reverse) {
+bool QMarkdownTextEdit::increaseSelectedTextIndention(bool reverse, const QString& indentCharacters) {
     QTextCursor cursor = this->textCursor();
     QString selectedText = cursor.selectedText();
 
-    if (selectedText != "") {
+    if (!selectedText.isEmpty()) {
         // we need this strange newline character we are getting in the
         // selected text for newlines
-        QString newLine = QString::fromUtf8(QByteArray::fromHex("e280a9"));
+        const QString newLine = QString::fromUtf8(QByteArray::fromHex("e280a9"));
         QString newText;
 
         if (reverse) {
             // un-indent text
 
-            // remove strange newline characters
-            newText = selectedText.replace(
-                    QRegularExpression(newLine + "[\\t ]"), "\n");
+            QSettings settings;
+            const int indentSize = indentCharacters == "\t" ? 4 : indentCharacters.count();
 
-            // remove leading \t or space
-            newText.remove(QRegularExpression("^[\\t ]"));
+            // remove leading \t or spaces in following lines
+            newText = selectedText.replace(
+                    QRegularExpression(newLine + "(\\t| {1," + QString::number(indentSize) +"})"), "\n");
+
+            // remove leading \t or spaces in first line
+            newText.remove(QRegularExpression("^(\\t| {1," + QString::number(indentSize) +"})"));
         } else {
+            // replace trailing new line to prevent an indent of the line after the selection
+            newText = selectedText.replace(QRegularExpression(QRegularExpression::escape(newLine) + "$"), "\n");
+
             // indent text
-            newText = selectedText.replace(newLine, "\n\t").prepend("\t");
+            newText.replace(newLine, "\n" + indentCharacters).prepend(indentCharacters);
 
             // remove trailing \t
-            newText.replace(QRegularExpression("\\t$"), "");
+            newText.remove(QRegularExpression("\\t$"));
         }
 
         // insert the new text
@@ -644,38 +845,48 @@ bool QMarkdownTextEdit::increaseSelectedTextIndention(bool reverse) {
 
         return true;
     } else if (reverse) {
-        // if nothing was selected but we want to reverse the indention check
-        // if there is a \t in front or after the cursor and remove it if so
-        int position = cursor.position();
+        const int indentSize = indentCharacters.count();
 
-        if (!cursor.atStart()) {
-            // get character in front of cursor
-            cursor.setPosition(position - 1, QTextCursor::KeepAnchor);
-        }
+        // do the check as often as we have characters to un-indent
+        for (int i = 1; i <= indentSize; i++) {
+            // if nothing was selected but we want to reverse the indention check
+            // if there is a \t in front or after the cursor and remove it if so
+            int position = cursor.position();
 
-        // check for \t or space in front of cursor
-        QRegularExpression re("[\\t ]");
-        QRegularExpressionMatch match = re.match(cursor.selectedText());
-
-        if (!match.hasMatch()) {
-            // (select to) check for \t or space after the cursor
-            cursor.setPosition(position);
-
-            if (!cursor.atEnd()) {
-                cursor.setPosition(position + 1, QTextCursor::KeepAnchor);
+            if (!cursor.atStart()) {
+                // get character in front of cursor
+                cursor.setPosition(position - 1, QTextCursor::KeepAnchor);
             }
-        }
 
-        match = re.match(cursor.selectedText());
+            // check for \t or space in front of cursor
+            QRegularExpression re("[\\t ]");
+            QRegularExpressionMatch match = re.match(cursor.selectedText());
 
-        if (match.hasMatch()) {
-            cursor.removeSelectedText();
+            if (!match.hasMatch()) {
+                // (select to) check for \t or space after the cursor
+                cursor.setPosition(position);
+
+                if (!cursor.atEnd()) {
+                    cursor.setPosition(position + 1, QTextCursor::KeepAnchor);
+                }
+            }
+
+            match = re.match(cursor.selectedText());
+
+            if (match.hasMatch()) {
+                cursor.removeSelectedText();
+            }
+
+            cursor = this->textCursor();
         }
 
         return true;
     }
 
-    return false;
+    // else just insert indentCharacters
+    cursor.insertText(indentCharacters);
+
+    return true;
 }
 
 /**
@@ -803,7 +1014,7 @@ QMap<QString, QString> QMarkdownTextEdit::parseMarkdownUrlsFromText(
 
     // match reference urls like this: [this url][1] with this later:
     // [1]: http://domain
-    regex = QRegularExpression(R"(\[(.*?)\]\s?\[(.+?)\])");
+    regex = QRegularExpression(R"(\[(.*?)\]\[(.+?)\])");
     iterator = regex.globalMatch(text);
     while (iterator.hasNext()) {
         QRegularExpressionMatch match = iterator.next();
@@ -940,7 +1151,7 @@ void QMarkdownTextEdit::setPlainText(const QString & text) {
 }
 
 /**
- * Uses an other widget as parent for the search widget
+ * Uses another widget as parent for the search widget
  */
 void QMarkdownTextEdit::initSearchFrame(QWidget *searchFrame, bool darkMode) {
     _searchFrame = searchFrame;
@@ -987,7 +1198,7 @@ bool QMarkdownTextEdit::handleReturnEntered() {
     // if return is pressed and there is just an unordered list symbol then we want to
     // remove the list symbol
     // Valid listCharacters: '+ ', '-' , '* ', '+ [ ] ', '+ [x] ', '- [ ] ', '- [x] ', '* [ ] ', '* [x] '.
-    QRegularExpression regex(R"(^(\s*)([+|\-|\*] \[(x| )\]|[+\-\*])(\s+)$)");
+    QRegularExpression regex(R"(^(\s*)([+|\-|\*] \[(x| |)\]|[+\-\*])(\s+)$)");
     QRegularExpressionMatchIterator iterator = regex.globalMatch(currentLineText);
     if (iterator.hasNext()) {
         cursor.removeSelectedText();
@@ -1015,13 +1226,21 @@ bool QMarkdownTextEdit::handleReturnEntered() {
         // if the current line starts with a list character (possibly after
         // whitespaces) add the whitespaces at the next line too
         // Valid listCharacters: '+ ', '-' , '* ', '+ [ ] ', '+ [x] ', '- [ ] ', '- [x] ', '* [ ] ', '* [x] '.
-        regex = QRegularExpression(R"(^(\s*)([+|\-|\*] \[(x| )\]|[+\-\*])(\s+))");
+        regex = QRegularExpression(R"(^(\s*)([+|\-|\*] \[(x| |)\]|[+\-\*])(\s+))");
         iterator = regex.globalMatch(currentLineText);
         if (iterator.hasNext()) {
             QRegularExpressionMatch match = iterator.next();
             QString whitespaces = match.captured(1);
             QString listCharacter = match.captured(2);
             QString whitespaceCharacter = match.captured(4);
+
+            // start new checkbox list item with an unchecked checkbox
+            iterator = QRegularExpression(R"(^([+|\-|\*]) \[(x| |)\])").globalMatch(listCharacter);
+            if (iterator.hasNext()) {
+                QRegularExpressionMatch match = iterator.next();
+                QString realListCharacter = match.captured(1);
+                listCharacter = realListCharacter + " [ ]";
+            }
 
             cursor.setPosition(position);
             cursor.insertText("\n" + whitespaces + listCharacter + whitespaceCharacter);
@@ -1071,7 +1290,7 @@ bool QMarkdownTextEdit::handleReturnEntered() {
 /**
  * Handles entered tab or reverse tab keys
  */
-bool QMarkdownTextEdit::handleTabEntered(bool reverse) {
+bool QMarkdownTextEdit::handleTabEntered(bool reverse, const QString& indentCharacters) {
     if (isReadOnly()) {
         return true;
     }
@@ -1096,9 +1315,10 @@ bool QMarkdownTextEdit::handleTabEntered(bool reverse) {
 
             // add or remove one tabulator key
             if (reverse) {
-                whitespaces.chop(1);
+                // remove one set of indentCharacters
+                whitespaces.replace(whitespaces.indexOf(indentCharacters), indentCharacters.size(), QStringLiteral(""));
             } else {
-                whitespaces += "\t";
+                whitespaces += indentCharacters;
             }
 
             cursor.insertText(whitespaces + listCharacter + whitespaceCharacter);
@@ -1119,7 +1339,7 @@ bool QMarkdownTextEdit::handleTabEntered(bool reverse) {
             if (reverse) {
                 whitespaces.chop(1);
             } else {
-                whitespaces += "\t";
+                whitespaces += indentCharacters;
             }
 
             cursor.insertText(whitespaces + listCharacter + "." +
@@ -1129,7 +1349,7 @@ bool QMarkdownTextEdit::handleTabEntered(bool reverse) {
     }
 
     // check if we want to intent the whole text
-    return increaseSelectedTextIndention(reverse);
+    return increaseSelectedTextIndention(reverse, indentCharacters);
 }
 
 /**
@@ -1140,29 +1360,141 @@ void QMarkdownTextEdit::setAutoTextOptions(AutoTextOptions options) {
 }
 
 /**
- * Overrides QPlainTextEdit::paintEvent to fix the RTL bug of QPlainTextEdit
- *
  * @param e
+ * @details This does two things
+ * 1. Overrides QPlainTextEdit::paintEvent to fix the RTL bug of QPlainTextEdit
+ * 2. Paints a rectangle around code block fences [Code taken from ghostwriter(which in turn
+ * is based on QPlaintextEdit::paintEvent() with modifications and minor improvements
+ * for our use
  */
 void QMarkdownTextEdit::paintEvent(QPaintEvent *e) {
     QTextBlock block = firstVisibleBlock();
 
-    while (block.isValid()) {
-        QTextLayout *layout = block.layout();
+    QPainter painter(viewport());
+    const QRect viewportRect = viewport()->rect();
+    //painter.fillRect(viewportRect, Qt::transparent);
+    bool firstVisible = true;
+    QPointF offset(contentOffset());
+    QRectF blockAreaRect; // Code or block quote rect.
+    bool inBlockArea = false;
+
+    bool clipTop = false;
+    bool drawBlock = false;
+    qreal dy = 0.0;
+    bool done = false;
+
+    const QColor &color = _highlighter->codeBlockBackgroundColor();
+    const int cornerRadius = 5;
+
+
+    while (block.isValid() && !done) {
+
+        const QRectF r = blockBoundingRect(block).translated(offset);
+        const int state = block.userState();
+
+        if (!inBlockArea &&
+               (state == MarkdownHighlighter::CodeBlock ||
+                state >= MarkdownHighlighter::CodeCpp)) {
+            //skip the backticks
+            if (!block.text().startsWith("```")) {
+                blockAreaRect = r;
+                dy = 0.0;
+                inBlockArea = true;
+            }
+
+            // If this is the first visible block within the viewport
+            // and if the previous block is part of the text block area,
+            // then the rectangle to draw for the block area will have
+            // its top clipped by the viewport and will need to be
+            // drawn specially.
+            const int prevBlockState = block.previous().userState();
+            if(firstVisible &&
+                   (prevBlockState == MarkdownHighlighter::CodeBlock ||
+                    prevBlockState >= MarkdownHighlighter::CodeCpp)) {
+                clipTop = true;
+            }
+        }
+        // Else if the block ends a text block area...
+        else if (inBlockArea && state == MarkdownHighlighter::CodeBlockEnd) {
+            drawBlock = true;
+            inBlockArea = false;
+            blockAreaRect.setHeight(dy);
+        }
+        // If the block is at the end of the document and ends a text
+        // block area...
+        //
+        if (inBlockArea && block == this->document()->lastBlock()) {
+            drawBlock = true;
+            inBlockArea = false;
+            dy += r.height();
+            blockAreaRect.setHeight(dy);
+        }
+        offset.ry() += r.height();
+        dy += r.height();
+
+        // If this is the last text block visible within the viewport...
+        if (offset.y() > viewportRect.height()) {
+            if (inBlockArea)
+            {
+                blockAreaRect.setHeight(dy);
+                drawBlock = true;
+            }
+
+            // Finished drawing.
+            done = true;
+        }
+        // If this is the last text block visible within the viewport...
+        if (offset.y() > viewportRect.height()) {
+            if (inBlockArea) {
+                blockAreaRect.setHeight(dy);
+                drawBlock = true;
+            }
+            // Finished drawing.
+            done = true;
+        }
+
+        if (drawBlock) {
+            painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(QBrush(color));
+
+            // If the first visible block is "clipped" such that the previous block
+            // is part of the text block area, then only draw a rectangle with the
+            // bottom corners rounded, and with the top corners square to reflect
+            // that the first visible block is part of a larger block of text.
+            //
+            if (clipTop) {
+                QPainterPath path;
+                path.setFillRule(Qt::WindingFill);
+                path.addRoundedRect(blockAreaRect, cornerRadius, cornerRadius);
+                qreal adjustedHeight = blockAreaRect.height() / 2;
+                path.addRect(blockAreaRect.adjusted(0, 0, 0, -adjustedHeight));
+                painter.drawPath(path.simplified());
+                clipTop = false;
+            }
+            // Else draw the entire rectangle with all corners rounded.
+            else {
+                painter.drawRoundedRect(blockAreaRect, cornerRadius, cornerRadius);
+            }
+
+            drawBlock = false;
+        }
 
         // this fixes the RTL bug of QPlainTextEdit
         // https://bugreports.qt.io/browse/QTBUG-7516
-        if (block.text().isRightToLeft())
-        {
-            QTextOption opt = document()->defaultTextOption();
-            opt = QTextOption(Qt::AlignRight);
+        if (block.text().isRightToLeft()) {
+            QTextLayout *layout = block.layout();
+            //opt = document()->defaultTextOption();
+            QTextOption opt = QTextOption(Qt::AlignRight);
             opt.setTextDirection(Qt::RightToLeft);
             layout->setTextOption(opt);
         }
 
         block = block.next();
+        firstVisible = false;
     }
 
+    painter.end();
     QPlainTextEdit::paintEvent(e);
 }
 
@@ -1293,4 +1625,9 @@ void QMarkdownTextEdit::hideSearchWidget(bool reset) {
     if (reset) {
         _searchWidget->reset();
     }
+}
+
+void QMarkdownTextEdit::updateSettings() {
+    // if true: centers the screen if cursor reaches bottom (but not top)
+    setCenterOnScroll(_centerCursor);
 }

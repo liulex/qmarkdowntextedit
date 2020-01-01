@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2019 Patrizio Bekerle -- http://www.bekerle.com
+ * Copyright (c) 2014-2020 Patrizio Bekerle -- <patrizio@bekerle.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,7 +37,7 @@ public:
 
     Q_DECLARE_FLAGS(AutoTextOptions, AutoTextOption)
 
-    explicit QMarkdownTextEdit(QWidget *parent = 0, bool initHighlighter = true);
+    explicit QMarkdownTextEdit(QWidget *parent = nullptr, bool initHighlighter = true);
     MarkdownHighlighter *highlighter();
     QPlainTextEditSearchWidget *searchWidget();
 
@@ -54,6 +54,7 @@ public:
     void doSearch(const QString &searchText,
                   QPlainTextEditSearchWidget::SearchMode searchMode = QPlainTextEditSearchWidget::SearchMode::PlainTextMode);
     void hideSearchWidget(bool reset);
+    void updateSettings();
 
 public slots:
     void duplicateText();
@@ -64,6 +65,9 @@ public slots:
     bool openLinkAtCursorPosition();
     bool handleBracketRemoval();
     void updateViewportCursor();
+    void centerTheCursor();
+    void undo();
+    void moveTextUpDown(bool up);
 
 protected:
     MarkdownHighlighter *_highlighter;
@@ -74,10 +78,12 @@ protected:
     AutoTextOptions _autoTextOptions;
     QStringList _openingCharacters;
     QStringList _closingCharacters;
+    bool _mouseButtonDown = false;
+    bool _centerCursor = false;
 
     bool eventFilter(QObject *obj, QEvent *event);
-    bool increaseSelectedTextIndention(bool reverse);
-    bool handleTabEntered(bool reverse);
+    bool increaseSelectedTextIndention(bool reverse, const QString& indentCharacters = "\t");
+    bool handleTabEntered(bool reverse, const QString& indentCharacters = "\t");
     QMap<QString, QString> parseMarkdownUrlsFromText(const QString& text);
     bool handleReturnEntered();
     bool handleBracketClosing(const QString& openingCharacter,
@@ -91,4 +97,7 @@ protected:
 
 signals:
     void urlClicked(const QString &url);
+
+private:
+    bool handleBracketClosingUsed;
 };

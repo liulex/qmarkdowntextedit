@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2019 Patrizio Bekerle -- http://www.bekerle.com
+ * Copyright (c) 2014-2020 Patrizio Bekerle -- <patrizio@bekerle.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@ QPlainTextEditSearchWidget::QPlainTextEditSearchWidget(QPlainTextEdit *parent) :
     _textEdit = parent;
     _darkMode = false;
     hide();
-    ui->searchCountLabel->setStyleSheet("* {color: grey}");
+    ui->searchCountLabel->setStyleSheet(QStringLiteral("* {color: grey}"));
     // hiding will leave a open space in the horizontal layout
     ui->searchCountLabel->setEnabled(false);
     _currentSearchResult = 0;
@@ -34,8 +34,8 @@ QPlainTextEditSearchWidget::QPlainTextEditSearchWidget(QPlainTextEdit *parent) :
 
     QObject::connect(ui->closeButton, SIGNAL(clicked()),
                      this, SLOT(deactivate()));
-    QObject::connect(ui->searchLineEdit, SIGNAL(textChanged(const QString &)),
-                     this, SLOT(searchLineEditTextChanged(const QString &)));
+    QObject::connect(ui->searchLineEdit, SIGNAL(textChanged(QString)),
+                     this, SLOT(searchLineEditTextChanged(QString)));
     QObject::connect(ui->searchDownButton, SIGNAL(clicked()),
                      this, SLOT(doSearchDown()));
     QObject::connect(ui->searchUpButton, SIGNAL(clicked()),
@@ -204,8 +204,8 @@ bool QPlainTextEditSearchWidget::doSearch(bool searchDown, bool allowRestartAtTo
     cursor.setPosition(qMin(cursor.anchor(), cursor.position()));
     _textEdit->setTextCursor(cursor);
 
-    if (text == "") {
-        ui->searchLineEdit->setStyleSheet("");
+    if (text.isEmpty()) {
+        ui->searchLineEdit->setStyleSheet(QLatin1String(""));
         return false;
     }
 
@@ -267,13 +267,15 @@ bool QPlainTextEditSearchWidget::doSearch(bool searchDown, bool allowRestartAtTo
     }
 
     // add a background color according if we found the text or not
-    QString colorCode = found ? "#D5FAE2" : "#FAE9EB";
+    QString colorCode = found ? QStringLiteral("#D5FAE2") :
+                                QStringLiteral("#FAE9EB");
 
     if (_darkMode) {
-        colorCode = found ? "#135a13" : "#8d2b36";
+        colorCode = found ? QStringLiteral("#135a13") : QStringLiteral("#8d2b36");
     }
 
-    ui->searchLineEdit->setStyleSheet("* { background: " + colorCode + "; }");
+    ui->searchLineEdit->setStyleSheet(QStringLiteral("* { background: ") +
+                                      colorCode + QStringLiteral("; }"));
 
     return found;
 }
@@ -356,8 +358,8 @@ void QPlainTextEditSearchWidget::reset() {
 void QPlainTextEditSearchWidget::updateSearchCountLabelText() {
     ui->searchCountLabel->setEnabled(true);
     ui->searchCountLabel->setText(QString("%1/%2").arg(
-            _currentSearchResult == 0 ? "-" : QString::number(_currentSearchResult),
-            _searchResultCount == 0 ? "-" : QString::number(_searchResultCount)));
+            _currentSearchResult == 0 ? QChar('-') : QString::number(_currentSearchResult),
+            _searchResultCount == 0 ? QChar('-') : QString::number(_searchResultCount)));
 }
 
 void QPlainTextEditSearchWidget::on_modeComboBox_currentIndexChanged(int index) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2019 Patrizio Bekerle -- http://www.bekerle.com
+ * Copyright (c) 2014-2020 Patrizio Bekerle -- <patrizio@bekerle.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -40,6 +40,37 @@ public:
                         HighlightingOptions highlightingOptions =
                         HighlightingOption::None);
 
+    inline QColor codeBlockBackgroundColor() const {
+        const QBrush brush = _formats[CodeBlock].background();
+
+        if (!brush.isOpaque()) {
+            return QColor(Qt::transparent);
+        }
+
+        return brush.color();
+    }
+
+   /**
+    * @brief returns true if c is octal
+    * @param c the char being checked
+    * @returns true if the number is octal, false otherwise
+    */
+   inline bool isOctal(const char c) {
+       return (c >= '0' && c <= '7');
+   }
+
+   /**
+    * @brief returns true if c is hex
+    * @param c the char being checked
+    * @returns true if the number is hex, false otherwise
+    */
+   inline bool isHex(const char c) {
+       return (
+           (c >= '0' && c <= '9') ||
+           (c >= 'a' && c <= 'f') ||
+           (c >= 'A' && c <= 'F'));
+   }
+
     // we use some predefined numbers here to be compatible with
     // the peg-markdown parser
     enum HighlighterState {
@@ -64,10 +95,67 @@ public:
         MaskedSyntax,
         CurrentLineBackgroundColor,
         BrokenLink,
+        FrontmatterBlock,
+        TrailingSpace,
+        CheckBoxUnChecked,
+        CheckBoxChecked,
+
+        //code highlighting
+        CodeKeyWord = 1000,
+        CodeString = 1001,
+        CodeComment = 1002,
+        CodeType = 1003,
+        CodeOther = 1004,
+        CodeNumLiteral = 1005,
+        CodeBuiltIn = 1006,
 
         // internal
         CodeBlockEnd = 100,
-        HeadlineEnd
+        HeadlineEnd,
+        FrontmatterBlockEnd,
+
+        //languages
+        /*********
+         * When adding a language make sure that its value is a multiple of 2
+         * This is because we use the next number as comment for that language
+         * In case the language doesn't support multiline comments in the traditional C++
+         * sense, leave the next value empty. Otherwise mark the next value as comment for
+         * that language.
+         * e.g
+         * CodeCpp = 200
+         * CodeCppComment = 201
+         */
+        CodeCpp = 200,
+        CodeCppComment = 201,
+        CodeJs = 202,
+        CodeJsComment = 203,
+        CodeC = 204,
+        CodeCComment = 205,
+        CodeBash = 206,
+        CodePHP = 208,
+        CodePHPComment = 209,
+        CodeQML = 210,
+        CodeQMLComment = 211,
+        CodePython = 212,
+        CodeRust = 214,
+        CodeRustComment = 215,
+        CodeJava = 216,
+        CodeJavaComment = 217,
+        CodeCSharp = 218,
+        CodeCSharpComment = 219,
+        CodeGo = 220,
+        CodeGoComment = 221,
+        CodeV = 222,
+        CodeVComment = 223,
+        CodeSQL = 224,
+        CodeJSON = 226,
+        CodeXML = 228,
+        CodeCSS = 230,
+        CodeCSSComment = 231,
+        CodeTypeScript = 232,
+        CodeTypeScriptComment = 233,
+        CodeYAML = 234,
+        CodeINI = 236
     };
     Q_ENUMS(HighlighterState)
 
@@ -84,7 +172,7 @@ public:
     void setTextFormats(const QHash<HighlighterState, QTextCharFormat>& formats);
     void setTextFormat(HighlighterState state, const QTextCharFormat& format);
     void clearDirtyBlocks();
-    void setHighlightingOptions(HighlightingOptions options);
+    void setHighlightingOptions(const HighlightingOptions options);
     void initHighlightingRules();
 
 signals:
@@ -95,7 +183,7 @@ protected slots:
 
 protected:
     struct HighlightingRule {
-        HighlightingRule(const HighlighterState state_) : state(state_) {}
+        explicit HighlightingRule(const HighlighterState state_) : state(state_) {}
         HighlightingRule() = default;
 
         QRegularExpression pattern;
@@ -114,12 +202,28 @@ protected:
 
     void highlightHeadline(const QString& text);
 
-    void highlightAdditionalRules(QVector<HighlightingRule> &rules,
+    void highlightAdditionalRules(const QVector<HighlightingRule> &rules,
                                   const QString& text);
 
     void highlightCodeBlock(const QString& text);
 
     void highlightCommentBlock(const QString &text);
+
+    void highlightSyntax(const QString &text);
+
+    int highlightNumericLiterals(const QString& text, int i);
+
+    int highlightStringLiterals(QChar strType, const QString& text, int i);
+
+    void ymlHighlighter(const QString &text);
+
+    void iniHighlighter(const QString &text);
+
+    void cssHighlighter(const QString &text);
+
+    void xmlHighlighter(const QString &text);
+
+    void highlightFrontmatterBlock(const QString& text);
 
     void addDirtyBlock(const QTextBlock& block);
 
@@ -128,14 +232,20 @@ protected:
     void setCurrentBlockBackground(HighlighterState state);
     void setCurrentBlockFormat(const QTextBlockFormat &blockFormat);
 
+    void setHeadingStyles(const QTextCharFormat &format,
+                     const QRegularExpressionMatch &match,
+                     const int capturedGroup);
+
+    static void initCodeLangs();
+
     QVector<HighlightingRule> _highlightingRulesPre;
     QVector<HighlightingRule> _highlightingRulesAfter;
+    static QHash<QString, HighlighterState> _langStringToEnum;
     QVector<QTextBlock> _dirtyTextBlocks;
     QHash<HighlighterState, QTextCharFormat> _formats;
     QTimer *_timer;
     bool _highlightingFinished;
     HighlightingOptions _highlightingOptions;
-    bool _codeblockExplicitStarted;
 
     void setCurrentBlockMargin(HighlighterState state);
 };
